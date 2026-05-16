@@ -4,8 +4,16 @@
 //
 //	go run . [--addr http://localhost:8080] [--out results.json]
 //
-// The issuer must be running before invoking this command.
-// Start it with: cd ../issuer && go run . &
+// The issuer must be running before invoking this command. Critically, the
+// issuer's default per-IP rate limit (10 rps, burst 20) would otherwise
+// 429-throttle the benchmark traffic into uselessness, since every request
+// originates from 127.0.0.1. Disable the limit for the bench run:
+//
+//	cd ../issuer && ISSUER_RATELIMIT_RPS=0 go run . &
+//	cd ../bench  && go run .
+//
+// Rate-limit 429s are reported as RateLimited (distinct from Failures) so a
+// misconfigured run is loud, not silent.
 package main
 
 import (
@@ -32,17 +40,18 @@ type RateLevel struct {
 
 // Result holds aggregate metrics for one rate level.
 type Result struct {
-	TargetRPS   int     `json:"target_rps"`
-	ActualRPS   float64 `json:"actual_rps"`
-	TotalReqs   int64   `json:"total_requests"`
-	Successes   int64   `json:"successes"`
-	Failures    int64   `json:"failures"`
-	SuccessRate float64 `json:"success_rate_pct"`
-	P50Ms       float64 `json:"p50_ms"`
-	P95Ms       float64 `json:"p95_ms"`
-	P99Ms       float64 `json:"p99_ms"`
-	MaxMs       float64 `json:"max_ms"`
-	DurationSec float64 `json:"duration_sec"`
+	TargetRPS    int     `json:"target_rps"`
+	ActualRPS    float64 `json:"actual_rps"`
+	TotalReqs    int64   `json:"total_requests"`
+	Successes    int64   `json:"successes"`
+	Failures     int64   `json:"failures"`
+	RateLimited  int64   `json:"rate_limited"` // 429s — likely caused by ISSUER_RATELIMIT_RPS > 0
+	SuccessRate  float64 `json:"success_rate_pct"`
+	P50Ms        float64 `json:"p50_ms"`
+	P95Ms        float64 `json:"p95_ms"`
+	P99Ms        float64 `json:"p99_ms"`
+	MaxMs        float64 `json:"max_ms"`
+	DurationSec  float64 `json:"duration_sec"`
 }
 
 // BenchReport is the top-level output written to results.json.
@@ -121,11 +130,12 @@ func runLevel(client *http.Client, addr string, payloads []Payload, level RateLe
 	deadline := time.Now().Add(level.Duration)
 
 	var (
-		mu        sync.Mutex
-		latencies []float64
-		successes int64
-		failures  int64
-		total     int64
+		mu          sync.Mutex
+		latencies   []float64
+		successes   int64
+		failures    int64
+		rateLimited int64
+		total       int64
 	)
 
 	var wg sync.WaitGroup
@@ -144,7 +154,7 @@ func runLevel(client *http.Client, addr string, payloads []Payload, level RateLe
 		go func(p Payload) {
 			defer wg.Done()
 			start := time.Now()
-			ok := doRequest(client, endpoint, p.Body)
+			status := doRequest(client, endpoint, p.Body)
 			elapsed := float64(time.Since(start).Microseconds()) / 1000.0 // ms
 
 			atomic.AddInt64(&total, 1)
@@ -152,9 +162,12 @@ func runLevel(client *http.Client, addr string, payloads []Payload, level RateLe
 			latencies = append(latencies, elapsed)
 			mu.Unlock()
 
-			if ok {
+			switch {
+			case status == http.StatusOK:
 				atomic.AddInt64(&successes, 1)
-			} else {
+			case status == http.StatusTooManyRequests:
+				atomic.AddInt64(&rateLimited, 1)
+			default:
 				atomic.AddInt64(&failures, 1)
 			}
 		}(payload)
@@ -166,6 +179,7 @@ func runLevel(client *http.Client, addr string, payloads []Payload, level RateLe
 	tot := atomic.LoadInt64(&total)
 	suc := atomic.LoadInt64(&successes)
 	fail := atomic.LoadInt64(&failures)
+	rl := atomic.LoadInt64(&rateLimited)
 
 	successRate := 0.0
 	if tot > 0 {
@@ -174,12 +188,17 @@ func runLevel(client *http.Client, addr string, payloads []Payload, level RateLe
 
 	actualRPS := float64(tot) / level.Duration.Seconds()
 
+	if rl > 0 {
+		log.Printf("WARN: %d/%d requests hit 429 (rate-limited). Disable with ISSUER_RATELIMIT_RPS=0 to measure max throughput.", rl, tot)
+	}
+
 	return Result{
 		TargetRPS:   level.TargetRPS,
 		ActualRPS:   round2(actualRPS),
 		TotalReqs:   tot,
 		Successes:   suc,
 		Failures:    fail,
+		RateLimited: rl,
 		SuccessRate: round2(successRate),
 		P50Ms:       round2(p50),
 		P95Ms:       round2(p95),
@@ -189,15 +208,16 @@ func runLevel(client *http.Client, addr string, payloads []Payload, level RateLe
 	}
 }
 
-// doRequest sends a single POST and returns true on HTTP 200.
-func doRequest(client *http.Client, endpoint string, body []byte) bool {
+// doRequest sends a single POST and returns the HTTP status code (-1 on
+// network error). Callers distinguish 200 vs 429 vs other failures.
+func doRequest(client *http.Client, endpoint string, body []byte) int {
 	resp, err := client.Post(endpoint, "application/json", bytes.NewReader(body))
 	if err != nil {
-		return false
+		return -1
 	}
 	defer resp.Body.Close()
 	io.Copy(io.Discard, resp.Body)
-	return resp.StatusCode == http.StatusOK
+	return resp.StatusCode
 }
 
 // waitForHealthz polls /v1/healthz until it returns 200 or timeout.
