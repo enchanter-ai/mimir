@@ -66,14 +66,14 @@ if [[ ! -d node_modules/solc ]]; then
   npm install --no-save --silent solc@0.8.20
 fi
 node compile.js >/dev/null
-LOCAL_BIN="go/abi/MimirValidationRegistry.bin"
-if [[ ! -s "$LOCAL_BIN" ]]; then
-  echo "ERROR: compile produced no bytecode at $LOCAL_BIN"; exit 1
+LOCAL_CREATION_BIN="go/abi/MimirValidationRegistry.bin"
+LOCAL_RUNTIME_BIN="go/abi/MimirValidationRegistry.runtime.bin"
+if [[ ! -s "$LOCAL_CREATION_BIN" || ! -s "$LOCAL_RUNTIME_BIN" ]]; then
+  echo "ERROR: compile produced no bytecode at $LOCAL_CREATION_BIN or $LOCAL_RUNTIME_BIN"; exit 1
 fi
-LOCAL_HASH=$($HASH_CMD "$LOCAL_BIN" | awk '{print $1}')
-LOCAL_LEN=$(wc -c < "$LOCAL_BIN" | awk '{print $1}')
-echo "  source recompiled: $LOCAL_LEN chars in $LOCAL_BIN"
-echo "  sha256(local)    : $LOCAL_HASH"
+LOCAL_HASH=$($HASH_CMD "$LOCAL_RUNTIME_BIN" | awk '{print $1}')
+echo "  source recompiled: $(wc -c < "$LOCAL_CREATION_BIN" | awk '{print $1}') chars creation, $(wc -c < "$LOCAL_RUNTIME_BIN" | awk '{print $1}') chars runtime"
+echo "  sha256(local runtime) : $LOCAL_HASH"
 cd ..
 
 # ─── Optional: pinned-hash check ────────────────────────────────────────
@@ -116,26 +116,64 @@ if [[ -z "$ONCHAIN" || "$ONCHAIN" == "0x" ]]; then
   exit 1
 fi
 
-# Solidity deployed bytecode is the runtime code (no constructor), which is
-# only a strict suffix of the creation bytecode. Verifying equality requires
-# extracting the runtime portion from the creation bin. solc emits this as
-# a separate file when configured; for the v0 check we compare lengths and
-# warn that strict byte equality requires re-running compile.js with
-# --output runtime-bytecode (a follow-up enhancement).
-LOCAL_RUNTIME_HEX=$(cat anchor/go/abi/MimirValidationRegistry.bin)
+LOCAL_RUNTIME_HEX=$(cat anchor/go/abi/MimirValidationRegistry.runtime.bin)
 LOCAL_RUNTIME_HEX="${LOCAL_RUNTIME_HEX#0x}"
 ONCHAIN_HEX="${ONCHAIN#0x}"
 
-echo "  onchain bytecode length : ${#ONCHAIN_HEX} hex chars"
-echo "  creation bytecode length: ${#LOCAL_RUNTIME_HEX} hex chars (creation includes constructor; runtime is a suffix)"
+echo "  onchain bytecode    : ${#ONCHAIN_HEX} hex chars"
+echo "  local runtime       : ${#LOCAL_RUNTIME_HEX} hex chars"
 
-# Defer strict equality to a follow-up. For now we assert the on-chain
-# code is non-empty AND the local compile produced bytecode, which is the
-# meaningful smoke test that the source compiles to something that COULD
-# match the deployment.
+# ─── Strict bytecode equality ───────────────────────────────────────────
+# The trailing 43 bytes (86 hex chars) of Solidity-compiled runtime bytecode
+# is the CBOR-encoded metadata (IPFS hash of the metadata.json + solc version
+# + experimental flag). It changes when:
+#   - solc version differs
+#   - metadata content differs (e.g. different absolute source paths)
+#   - the metadata IPFS hash differs (recomputed every compile)
+# We compare both the FULL bytecode (strict) and the metadata-stripped
+# bytecode (semantic) and report each separately.
+
+if [[ "$LOCAL_RUNTIME_HEX" == "$ONCHAIN_HEX" ]]; then
+  echo
+  echo "  byte-for-byte match : YES (strict — including metadata suffix)"
+  STRICT_OK=1
+else
+  echo
+  echo "  byte-for-byte match : NO (metadata suffix likely differs — checking semantic equality)"
+  STRICT_OK=0
+fi
+
+# Strip the metadata suffix and re-compare.
+STRIP=86 # 43 bytes * 2 hex chars
+if [[ ${#LOCAL_RUNTIME_HEX} -gt $STRIP && ${#ONCHAIN_HEX} -gt $STRIP ]]; then
+  LOCAL_NOMETA="${LOCAL_RUNTIME_HEX:0:$((${#LOCAL_RUNTIME_HEX} - STRIP))}"
+  ONCHAIN_NOMETA="${ONCHAIN_HEX:0:$((${#ONCHAIN_HEX} - STRIP))}"
+  if [[ "$LOCAL_NOMETA" == "$ONCHAIN_NOMETA" ]]; then
+    echo "  semantic match      : YES (metadata-stripped bytecode is identical — code is auditable)"
+    if [[ "$STRICT_OK" -eq 0 ]]; then
+      echo
+      echo "==== VERIFY OK (semantic) ===="
+      echo
+      echo "The deployed contract is the SAME CODE as this source — only the"
+      echo "CBOR metadata suffix differs (most commonly because the .json"
+      echo "source paths embedded by solc don't match between local and CI"
+      echo "compile environments). For source verification on Etherscan this"
+      echo "is sufficient."
+      exit 0
+    fi
+    echo
+    echo "==== VERIFY OK (strict) ===="
+    exit 0
+  fi
+  echo
+  echo "  semantic match      : NO"
+  echo "  ERROR: deployed bytecode does not correspond to this source."
+  echo "  Showing first 64 hex chars of each for diagnosis:"
+  echo "    local:   ${LOCAL_RUNTIME_HEX:0:64}"
+  echo "    onchain: ${ONCHAIN_HEX:0:64}"
+  exit 1
+fi
+
 echo
-echo "==== VERIFY OK (smoke level) ===="
-echo
-echo "Note: strict bytecode equality requires extracting the runtime portion"
-echo "of the creation bytecode (solc's .deployedBytecode field). This will be"
-echo "added once compile.js emits both creation and runtime bytecode."
+echo "ERROR: bytecode too short to strip metadata suffix"
+exit 1
