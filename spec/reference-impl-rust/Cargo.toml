@@ -1,0 +1,30 @@
+[package]
+name = "mimir-verifier"
+version = "0.1.0"
+edition = "2021"
+description = "Independent Rust verifier for Mimir provenance envelopes (Enchanter Labs spec § 9 / 10)"
+authors = ["Enchanter Labs"]
+license = "MIT"
+
+[[bin]]
+name = "mimir-verify"
+path = "src/main.rs"
+
+[lib]
+name = "mimir_verifier"
+path = "src/lib.rs"
+
+[dependencies]
+ed25519-dalek = { version = "2", features = ["alloc"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+base64ct = { version = "1", features = ["alloc"] }
+sha2 = "0.10"
+thiserror = "1"
+
+[dev-dependencies]
+reqwest = { version = "0.12", features = ["blocking", "json"] }
+tempfile = "3"
+
+[profile.release]
+opt-level = 3
