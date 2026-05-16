@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/enchanter-ai/mimir/issuer/canonicalize"
+	"github.com/enchanter-ai/mimir/issuer/keystore"
 	"github.com/enchanter-ai/mimir/issuer/kms"
 	"github.com/enchanter-ai/mimir/issuer/types"
 	"github.com/gorilla/mux"
@@ -45,10 +46,18 @@ func TestServerEndToEndWithAWSFake(t *testing.T) {
 		t.Fatalf("NewAWSSignerWithAPI: %v", err)
 	}
 
-	srv := &server{signer: signer}
+	// Steer the keystore away from a stray historical-keys file in the test
+	// working dir.
+	t.Setenv("ISSUER_HISTORICAL_KEYS_FILE", t.TempDir()+"/none.json")
+	ks, err := keystore.New(signer.KeyID(), signer.PublicKey())
+	if err != nil {
+		t.Fatalf("keystore.New: %v", err)
+	}
+	srv := &server{signer: signer, keystore: ks}
 	r := mux.NewRouter()
 	r.HandleFunc("/v1/attest", srv.handleAttest).Methods(http.MethodPost)
 	r.HandleFunc("/v1/key", srv.handleKey).Methods(http.MethodGet)
+	r.HandleFunc("/v1/keys", srv.handleKeys).Methods(http.MethodGet)
 	ts := httptest.NewServer(r)
 	defer ts.Close()
 
