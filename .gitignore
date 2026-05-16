@@ -1,0 +1,58 @@
+# Secrets — NEVER commit
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+
+# Go
+issuer/issuer
+issuer/issuer.exe
+*.exe
+*.test
+*.out
+
+# Rust
+spec/reference-impl-rust/target/
+
+# Node / TypeScript
+node_modules/
+dist/
+build/
+anchor/node_modules/
+anchor/package-lock.json
+scoring/node_modules/
+scoring/dist/
+
+# Foundry (kept for future; we use simulated-EVM tests instead)
+anchor/out/
+anchor/cache/
+anchor/lib/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+.pytest_cache/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+*~
+.vscode/
+.idea/
+
+# Demo / local-run artefacts
+demo-output.log
+demo-transcript.md
+scoring/calibration/probe-transcript.json
+bench/results.json
+bench/REPORT.md
+bench/bench.exe
+
+# Logs
+*.log
