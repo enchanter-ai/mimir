@@ -1,0 +1,3 @@
+## Attack 09 — `signature.protected_header.alg` changed from `Ed25519` to `"none"`
+
+The algorithm identifier in `signature.protected_header.alg` has been changed from `Ed25519` to `none`. This is a signature algorithm downgrade attack (§15.3). A correct verifier **MUST** reject this via `VE-006` (algorithm mismatch) because `none` does not match the algorithm declared in `version` (`mcp-provenance/2026-05-13-ed25519`). In v2, `protected_header` is included in the signed canonical form (§9.2), so changing `alg` also invalidates the signature (`VE-008`). The spec requires the `VE-006` check to run **before** signature verification (§10.2 step 3) as defence-in-depth. Spec §6.13, §10.2 step 3, §15.3 (Signature Algorithm Downgrade).
