@@ -1,0 +1,3 @@
+## Attack 07 — `invoked_at` moved 1 hour into the future
+
+`invoked_at` has been changed from the original value to `2026-05-13T19:26:10Z`, which is 1 hour in the future relative to the original signing time. The signature was computed over the original `invoked_at`; altering it invalidates the signature (`VE-008`). Even if the signature were valid, a Consumer **SHOULD** reject envelopes whose `invoked_at` exceeds the Consumer's clock-skew tolerance (`VE-004`). The non-normative default tolerance is 300 seconds (§6.6); 1 hour far exceeds it. Spec §6.6 defines the timestamp skew check; §9.2 includes `invoked_at` in the signed canonical form; §15.2 discusses `invoked_at` as a replay-window bound.

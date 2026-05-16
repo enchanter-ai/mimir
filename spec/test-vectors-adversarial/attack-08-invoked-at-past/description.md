@@ -1,0 +1,3 @@
+## Attack 08 — `invoked_at` moved 1 hour into the past (stale)
+
+`invoked_at` has been changed to `2026-05-13T17:26:10Z`, which is 1 hour earlier than the original signing time. The signature was computed over the original `invoked_at`; altering it invalidates the signature (`VE-008`). Even if the signature were valid, a Consumer **MAY** reject the envelope via `VE-004` if the timestamp exceeds the Consumer's clock-skew tolerance (§6.6, non-normative default 300 seconds). This vector tests the stale-envelope variant of the replay-window check. Spec §6.6 defines `VE-004`; §15.2 names `invoked_at` as a replay bound.

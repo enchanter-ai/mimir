@@ -1,0 +1,3 @@
+## Attack 05 — `result_digest` altered after signing
+
+One hex character in `result_digest` has been changed after the envelope was signed. The result digest is included in the signed canonical form; altering it post-signing invalidates the signature. A correct verifier **MUST** reject this: signature verification fails (`VE-008`) because the canonical bytes now differ from what the Producer signed; additionally, the digest does not match the Consumer's observed result (`VE-010`). Spec §9.2 mandates that `result_digest` is part of the signed canonical form; §10.2 step 13 cross-checks it against the `content` field; §6.9 defines the digest computation; §15.11 is the threat model.

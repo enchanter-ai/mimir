@@ -1,0 +1,3 @@
+## Attack 06 — `tool_call_id` swapped with another envelope's
+
+The `tool_call_id` has been replaced with the value from an unrelated envelope (`aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee`). The signature was computed over the original `tool_call_id`; swapping it changes the canonical bytes and invalidates the signature (`VE-008`). Beyond the signature failure, the Consumer **MUST** also reject this via `VE-002` because the `tool_call_id` no longer matches any pending tool-call in the Consumer's session. Spec §6.3 requires the Consumer to check `tool_call_id` against the originating session call (`VE-002`); §9.2 includes `tool_call_id` in the signed canonical form; §15.2 (Replay Attacks) and §15.19 (Cross-Session Replay) describe the threat.
