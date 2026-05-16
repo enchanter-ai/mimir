@@ -1,0 +1,37 @@
+{
+  "request": {
+    "jsonrpc": "2.0",
+    "id": "req-search-abc",
+    "method": "tools/call",
+    "params": {
+      "name": "search_web",
+      "arguments": {
+        "query": "MCP Model Context Protocol specification 2025",
+        "max_results": 5,
+        "safe_search": true
+      },
+      "_meta": {
+        "progressToken": "progress-tok-007"
+      }
+    }
+  },
+  "result": {
+    "jsonrpc": "2.0",
+    "id": "req-search-abc",
+    "result": {
+      "content": [
+        {
+          "type": "text",
+          "text": "Result 1: modelcontextprotocol.io — Official MCP specification site."
+        },
+        {
+          "type": "text",
+          "text": "Result 2: github.com/modelcontextprotocol — Reference implementations."
+        }
+      ],
+      "isError": false
+    }
+  },
+  "tool_id": "did:web:example.com:tools:search-web",
+  "tool_version": "0.9.4"
+}

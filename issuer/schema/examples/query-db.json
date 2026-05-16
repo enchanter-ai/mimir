@@ -1,0 +1,30 @@
+{
+  "request": {
+    "jsonrpc": "2.0",
+    "id": 7,
+    "method": "tools/call",
+    "params": {
+      "name": "query_db",
+      "arguments": {
+        "sql": "SELECT id, name, email FROM users WHERE active = true LIMIT 10",
+        "database": "production",
+        "read_only": true
+      }
+    }
+  },
+  "result": {
+    "jsonrpc": "2.0",
+    "id": 7,
+    "result": {
+      "content": [
+        {
+          "type": "text",
+          "text": "id,name,email\n1,Alice,alice@example.com\n2,Bob,bob@example.com"
+        }
+      ],
+      "isError": false
+    }
+  },
+  "tool_id": "did:web:example.com:tools:query-db",
+  "tool_version": "2.3.1"
+}
