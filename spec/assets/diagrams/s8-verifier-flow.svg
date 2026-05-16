@@ -1,0 +1,60 @@
+<svg viewBox="0 0 900 520" xmlns="http://www.w3.org/2000/svg" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif">
+  <!-- Background -->
+  <rect width="900" height="520" fill="white"/>
+
+  <!-- Actor boxes -->
+  <rect x="100" y="20" width="120" height="40" fill="white" stroke="black" stroke-width="1" rx="2"/>
+  <text x="160" y="45" font-size="13" text-anchor="middle" font-weight="500">Consumer</text>
+
+  <rect x="350" y="20" width="120" height="40" fill="white" stroke="black" stroke-width="1" rx="2"/>
+  <text x="410" y="45" font-size="13" text-anchor="middle" font-weight="500">Registry</text>
+
+  <!-- Lifelines -->
+  <line x1="160" y1="60" x2="160" y2="500" stroke="#ccc" stroke-width="1" stroke-dasharray="3,3"/>
+  <line x1="410" y1="60" x2="410" y2="500" stroke="#ccc" stroke-width="1" stroke-dasharray="3,3"/>
+
+  <!-- Arrow markers -->
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <polygon points="0 0, 10 3, 0 6" fill="black"/>
+    </marker>
+    <marker id="dasharrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <polygon points="0 0, 10 3, 0 6" fill="black"/>
+    </marker>
+  </defs>
+
+  <!-- Message 1: Consumer internal - parse -->
+  <rect x="110" y="85" width="100" height="20" fill="none" stroke="black" stroke-width="1" rx="2"/>
+  <text x="160" y="98" font-size="11" text-anchor="middle" fill="black">parse envelope</text>
+
+  <!-- Message 2: Consumer internal - well-formed check -->
+  <rect x="90" y="125" width="140" height="20" fill="none" stroke="black" stroke-width="1" rx="2"/>
+  <text x="160" y="138" font-size="11" text-anchor="middle" fill="black">§10.1 well-formed</text>
+
+  <!-- Message 3: Consumer internal - verify signature -->
+  <rect x="80" y="165" width="160" height="20" fill="none" stroke="black" stroke-width="1" rx="2"/>
+  <text x="160" y="178" font-size="11" text-anchor="middle" fill="black">§10.2 verify sig</text>
+
+  <!-- Message 4: Consumer → Registry -->
+  <line x1="160" y1="215" x2="410" y2="215" stroke="black" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+  <text x="285" y="205" font-size="12" text-anchor="middle" fill="black">lookup tool_id</text>
+
+  <!-- Message 5: Registry ⇢ Consumer (dashed) -->
+  <line x1="410" y1="245" x2="160" y2="245" stroke="black" stroke-width="1.5" stroke-dasharray="5,5" marker-end="url(#dasharrow)"/>
+  <text x="285" y="235" font-size="12" text-anchor="middle" fill="black">trust anchor record</text>
+
+  <!-- Message 6: Consumer internal - trust-anchored check -->
+  <rect x="80" y="275" width="160" height="20" fill="none" stroke="black" stroke-width="1" rx="2"/>
+  <text x="160" y="288" font-size="11" text-anchor="middle" fill="black">§10.3 trust-anchored</text>
+
+  <!-- Message 7: Consumer internal - validation outcome -->
+  <rect x="80" y="330" width="160" height="20" fill="none" stroke="black" stroke-width="1" rx="2"/>
+  <text x="160" y="343" font-size="11" text-anchor="middle" fill="black">validation outcome</text>
+
+  <!-- Legend/annotation -->
+  <text x="100" y="400" font-size="11" fill="#333">Three progressive levels:</text>
+  <text x="120" y="420" font-size="11" fill="#333">• Level 1: Syntax check (§10.1)</text>
+  <text x="120" y="440" font-size="11" fill="#333">• Level 2: Cryptographic validity (§10.2)</text>
+  <text x="120" y="460" font-size="11" fill="#333">• Level 3: Trust-anchored registry lookup (§10.3)</text>
+  <text x="120" y="490" font-size="10" fill="#666">Consumer MAY stop at any level that satisfies policy</text>
+</svg>

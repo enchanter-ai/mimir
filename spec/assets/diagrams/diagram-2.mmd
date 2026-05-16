@@ -1,0 +1,10 @@
+sequenceDiagram
+    participant Consumer
+    participant Registry
+    Consumer->>Consumer: parse envelope JSON
+    Consumer->>Consumer: § 10.1 well-formed check
+    Consumer->>Consumer: § 10.2 verify signature
+    Consumer->>Registry: lookup tool_id trust anchor
+    Registry-->>Consumer: trust anchor record or not-found
+    Consumer->>Consumer: § 10.3 trust-anchored check
+    Consumer-->>Consumer: validation outcome

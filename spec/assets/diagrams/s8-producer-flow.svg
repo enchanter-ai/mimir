@@ -1,0 +1,73 @@
+<svg viewBox="0 0 900 500" xmlns="http://www.w3.org/2000/svg" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif">
+  <!-- Background -->
+  <rect width="900" height="500" fill="white"/>
+
+  <!-- Actor boxes -->
+  <rect x="50" y="20" width="100" height="40" fill="white" stroke="black" stroke-width="1" rx="2"/>
+  <text x="100" y="45" font-size="13" text-anchor="middle" font-weight="500">LLM</text>
+
+  <rect x="200" y="20" width="100" height="40" fill="white" stroke="black" stroke-width="1" rx="2"/>
+  <text x="250" y="45" font-size="13" text-anchor="middle" font-weight="500">Client</text>
+
+  <rect x="350" y="20" width="100" height="40" fill="white" stroke="black" stroke-width="1" rx="2"/>
+  <text x="400" y="45" font-size="13" text-anchor="middle" font-weight="500">Server</text>
+
+  <rect x="500" y="20" width="100" height="40" fill="white" stroke="black" stroke-width="1" rx="2"/>
+  <text x="550" y="45" font-size="13" text-anchor="middle" font-weight="500">Tool</text>
+
+  <rect x="650" y="20" width="150" height="40" fill="white" stroke="black" stroke-width="1" rx="2"/>
+  <text x="725" y="45" font-size="13" text-anchor="middle" font-weight="500">Signing &amp; Response</text>
+
+  <!-- Lifelines -->
+  <line x1="100" y1="60" x2="100" y2="480" stroke="#ccc" stroke-width="1" stroke-dasharray="3,3"/>
+  <line x1="250" y1="60" x2="250" y2="480" stroke="#ccc" stroke-width="1" stroke-dasharray="3,3"/>
+  <line x1="400" y1="60" x2="400" y2="480" stroke="#ccc" stroke-width="1" stroke-dasharray="3,3"/>
+  <line x1="550" y1="60" x2="550" y2="480" stroke="#ccc" stroke-width="1" stroke-dasharray="3,3"/>
+  <line x1="725" y1="60" x2="725" y2="480" stroke="#ccc" stroke-width="1" stroke-dasharray="3,3"/>
+
+  <!-- Message 1: LLM → Client -->
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <polygon points="0 0, 10 3, 0 6" fill="black"/>
+    </marker>
+    <marker id="dasharrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <polygon points="0 0, 10 3, 0 6" fill="black"/>
+    </marker>
+  </defs>
+
+  <line x1="100" y1="100" x2="250" y2="100" stroke="black" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+  <text x="175" y="90" font-size="12" text-anchor="middle" fill="black">requests tool call</text>
+
+  <!-- Message 2: Client → Server -->
+  <line x1="250" y1="140" x2="400" y2="140" stroke="black" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+  <text x="325" y="130" font-size="12" text-anchor="middle" fill="black">tools/call</text>
+
+  <!-- Message 3: Server → Tool -->
+  <line x1="400" y1="180" x2="550" y2="180" stroke="black" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+  <text x="475" y="170" font-size="12" text-anchor="middle" fill="black">execute</text>
+
+  <!-- Message 4: Tool ⇢ Server (dashed) -->
+  <line x1="550" y1="220" x2="400" y2="220" stroke="black" stroke-width="1.5" stroke-dasharray="5,5" marker-end="url(#dasharrow)"/>
+  <text x="475" y="210" font-size="12" text-anchor="middle" fill="black">raw result</text>
+
+  <!-- Message 5: Server internal -->
+  <rect x="370" y="250" width="60" height="20" fill="none" stroke="black" stroke-width="1" rx="2"/>
+  <text x="400" y="263" font-size="11" text-anchor="middle" fill="black">transform</text>
+
+  <!-- Message 6: Server internal -->
+  <rect x="350" y="290" width="100" height="20" fill="none" stroke="black" stroke-width="1" rx="2"/>
+  <text x="400" y="303" font-size="11" text-anchor="middle" fill="black">construct + sign</text>
+
+  <!-- Message 7: Server ⇢ Client (dashed) -->
+  <line x1="400" y1="330" x2="250" y2="330" stroke="black" stroke-width="1.5" stroke-dasharray="5,5" marker-end="url(#dasharrow)"/>
+  <text x="325" y="320" font-size="12" text-anchor="middle" fill="black">tools/call response</text>
+  <text x="325" y="343" font-size="11" text-anchor="middle" fill="black">{ result, provenance }</text>
+
+  <!-- Message 8: Client internal -->
+  <rect x="210" y="370" width="80" height="20" fill="none" stroke="black" stroke-width="1" rx="2"/>
+  <text x="250" y="383" font-size="11" text-anchor="middle" fill="black">validate (§10)</text>
+
+  <!-- Message 9: Client ⇢ LLM (dashed) -->
+  <line x1="250" y1="410" x2="100" y2="410" stroke="black" stroke-width="1.5" stroke-dasharray="5,5" marker-end="url(#dasharrow)"/>
+  <text x="175" y="400" font-size="12" text-anchor="middle" fill="black">result + validation</text>
+</svg>
