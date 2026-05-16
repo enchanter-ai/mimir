@@ -108,7 +108,7 @@ See [`spec/spec.pdf`](spec/spec.pdf) §§ 1–5 for the full design surface and 
 | G1 Independent verifier (interop)        | ✅ Rust verifier round-trips against Go issuer (6/6) |
 | G2 Adversarial resistance                | ✅ 12/12 attack vectors rejected |
 | G3 Key custody (AWS KMS)                 | ✅ Wire-faithful fake validates HTTP path; AWS provisioning external |
-| G4 On-chain anchor + EigenLayer slashing | ✅ 12/12 simulated-EVM tests; Holesky deploy script ready |
+| G4 On-chain anchor + EigenLayer slashing | ✅ 12/12 simulated-EVM tests; **LIVE on Sepolia** at [`0xEbdAa5a99DFde9a4A603aacfE1cC5AcFc0DA4117`](https://sepolia.etherscan.io/address/0xEbdAa5a99DFde9a4A603aacfE1cC5AcFc0DA4117); full lifecycle (anchor → verify → revoke) confirmed on-chain |
 | G5 MCP wire format                       | ✅ Official Anthropic MCP SDK round-trip end-to-end |
 | G6 Throughput + concurrency              | ✅ 1500 RPS sustained, 0 races at 500-goroutine stress |
 | G7 σ-bound calibration                   | ✅ 50-case labeled set: 100% precision, 20% recall |
@@ -116,7 +116,7 @@ See [`spec/spec.pdf`](spec/spec.pdf) §§ 1–5 for the full design surface and 
 Three operator steps remain to flip from "proven locally" to "live in production":
 
 1. **AWS KMS provisioning + IAM policy** (~30 min)
-2. **Holesky testnet deploy** (~15 min — scripts in [`anchor/cmd/`](anchor/go/cmd/); runbook at [`anchor/DEPLOY.md`](anchor/DEPLOY.md))
+2. **~~Holesky~~ Sepolia testnet deploy** — ✅ done; contract `0xEbdAa5a99DFde9a4A603aacfE1cC5AcFc0DA4117`. Next step: deploy a second instance in AVS mode wired to real EigenLayer Holesky/mainnet core.
 3. **MCP host registration** (Claude Desktop / Cursor / Cline — ~10 min per host)
 
 Full evidence in [`PRODUCTION_READINESS.md`](PRODUCTION_READINESS.md).

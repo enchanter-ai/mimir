@@ -20,7 +20,7 @@
 | **On-chain anchor** (`MimirValidationRegistry`, ERC-8004 shape) | ✅ 7/7 simulated-EVM tests | [`anchor/contracts/`](anchor/contracts/), [`anchor/go/anchor_test.go`](anchor/go/anchor_test.go) |
 | **EigenLayer slashing wiring** | ✅ 5/5 AVS-mode tests against mocked IServiceManager + ISlasher | [`anchor/go/eigenlayer_test.go`](anchor/go/eigenlayer_test.go) |
 | **Throughput + concurrency** | ✅ 1500 RPS sustained; 0 races under 500-goroutine stress | [`bench/`](bench/) |
-| **Testnet (Holesky) deploy** | 📋 Scripts ready; awaits funded wallet + RPC creds | [`anchor/DEPLOY.md`](anchor/DEPLOY.md) |
+| **Testnet deploy (Sepolia, permissionless mode)** | ✅ **Live** at [`0xEbdAa5a9…4117`](https://sepolia.etherscan.io/address/0xEbdAa5a99DFde9a4A603aacfE1cC5AcFc0DA4117); full lifecycle confirmed on-chain 2026-05-16 | [`docs/deployments.md`](docs/deployments.md) |
 | **Production readiness audit doc** | ✅ Published | [`PRODUCTION_READINESS.md`](PRODUCTION_READINESS.md) |
 | **Security audit prep doc** | ✅ Published; engagement-ready | [`AUDIT_PREP.md`](AUDIT_PREP.md) |
 
@@ -30,18 +30,16 @@
 
 ## Next 90 days
 
-### M1 — Holesky deploy + EigenLayer AVS registration (~2 weeks)
+### M1 — Testnet deploy + EigenLayer AVS registration (~2 weeks)
 
-Goal: a live `MimirValidationRegistry` on Holesky, wired to real EigenLayer core contracts, with at least one registered operator anchoring real signed envelopes.
+Goal: a live `MimirValidationRegistry` on a public testnet, wired to real EigenLayer core contracts, with at least one registered operator anchoring real signed envelopes.
 
-- [ ] Run [`anchor/cmd/deploy`](anchor/go/cmd/deploy/main.go) on Holesky in PERMISSIONLESS mode; record contract address.
-- [ ] Etherscan source-verify the deployment.
-- [ ] Deploy a second contract instance in AVS mode pointed at EigenLayer Holesky `ServiceManagerBase` + `AllocationManager`.
+- [x] Run [`anchor/cmd/deploy`](anchor/go/cmd/deploy/main.go) on Sepolia in PERMISSIONLESS mode → [`0xEbdAa5a9…4117`](https://sepolia.etherscan.io/address/0xEbdAa5a99DFde9a4A603aacfE1cC5AcFc0DA4117).
+- [x] Publish the contract address in [`docs/deployments.md`](docs/deployments.md).
+- [ ] Etherscan source-verify the Sepolia deployment.
+- [ ] Deploy a second contract instance on Holesky in AVS mode pointed at EigenLayer Holesky `ServiceManagerBase` + `AllocationManager`.
 - [ ] Register the issuer's wallet as an EigenLayer operator with allocated stake.
 - [ ] End-to-end live test: scoring service → issuer → `AnchorEnvelope()` → external Rust verifier.
-- [ ] Publish the contract address(es) in [`docs/deployments.md`](docs/deployments.md) (new file).
-
-**Blocker:** Holesky-funded wallet + RPC endpoint creds. ~$0 actual cost (faucet ETH).
 
 ### M2 — First external audit engagement (~6 weeks)
 
