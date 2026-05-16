@@ -1,0 +1,5 @@
+{
+  "verdict": "REJECT",
+  "reason_code": "VE-002",
+  "spec_section": "\u00a76.3, \u00a79.2, \u00a715.2, \u00a715.19"
+}
