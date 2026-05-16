@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"os"
 
+	"log/slog"
 	"time"
 
 	"github.com/enchanter-ai/mimir/issuer/clientid"
@@ -24,17 +25,23 @@ import (
 	"github.com/enchanter-ai/mimir/issuer/kms"
 	"github.com/enchanter-ai/mimir/issuer/ratelimit"
 	"github.com/enchanter-ai/mimir/issuer/schema"
+	"github.com/enchanter-ai/mimir/issuer/telemetry"
 	"github.com/enchanter-ai/mimir/issuer/types"
 	"github.com/gorilla/mux"
 )
 
-// server holds the active Signer (key custody backend) + the JWK Set keystore.
+// server holds the active Signer (key custody backend), the JWK Set keystore,
+// and the telemetry tracer that spans the hot paths.
 type server struct {
 	signer   kms.Signer
 	keystore *keystore.Store
+	tracer   telemetry.Tracer
 }
 
 func main() {
+	logger := telemetry.Setup()
+	tracer := telemetry.NewTracer(logger)
+
 	signer, err := selectSigner()
 	if err != nil {
 		log.Fatalf("FATAL: signer init: %v", err)
@@ -44,7 +51,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("FATAL: keystore init: %v", err)
 	}
-	srv := &server{signer: signer, keystore: ks}
+	srv := &server{signer: signer, keystore: ks, tracer: tracer}
 
 	log.Printf("INFO: issuer started — key_id=%s", signer.KeyID())
 	log.Printf("INFO: public key (base64url): %s", base64.RawURLEncoding.EncodeToString(signer.PublicKey()))
@@ -115,8 +122,13 @@ func listenAddr() string {
 
 // handleAttest handles POST /v1/attest.
 func (s *server) handleAttest(w http.ResponseWriter, r *http.Request) {
+	ctx, span := s.tracer.StartSpan(r.Context(), "handle_attest",
+		slog.String("method", r.Method), slog.String("path", r.URL.Path))
+	defer span.End()
+
 	var req types.AttestRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		span.SetError(err)
 		httpError(w, http.StatusBadRequest, "invalid JSON body: "+err.Error())
 		return
 	}
@@ -140,20 +152,31 @@ func (s *server) handleAttest(w http.ResponseWriter, r *http.Request) {
 
 	invokedBy, validationLevel, err := s.resolveClientIdentity(r, req.ClientIdentityProof)
 	if err != nil {
+		span.SetError(err)
 		httpError(w, http.StatusBadRequest, "client_identity_proof rejected: "+err.Error())
 		return
 	}
 
+	_, signSpan := s.tracer.StartSpan(ctx, "build_envelope",
+		slog.String("tool_id", req.ToolID), slog.String("invoked_by", invokedBy))
 	env, err := envelope.BuildEnvelopeWithIdentityCtx(
-		r.Context(),
+		ctx,
 		req.Request, req.Result,
 		req.ToolID, req.ToolVersion, invokedBy,
 		s.signer,
 	)
 	if err != nil {
+		signSpan.SetError(err)
+		signSpan.End()
+		span.SetError(err)
 		httpError(w, http.StatusInternalServerError, "envelope build failed: "+err.Error())
 		return
 	}
+	signSpan.SetAttr("tool_call_id", env.ToolCallID)
+	signSpan.End()
+
+	span.SetAttr("validation_level", validationLevel)
+	span.SetAttr("tool_call_id", env.ToolCallID)
 
 	resp := types.AttestResponse{Envelope: env, ValidationLevel: validationLevel}
 
