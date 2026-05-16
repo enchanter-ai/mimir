@@ -1,0 +1,1568 @@
+{
+  "_comment": "SYNTHETIC SIGNATURE PLACEHOLDERS — Every 'signature.value' in this file is the string 'SYNTHETIC_PLACEHOLDER_REPLACE_WITH_REAL_SIG'. The request_digest and result_digest values ARE real SHA-256 digests computed via RFC 8785 canonicalization using Python hashlib. The reference implementation (c3) MUST re-sign every vector with real keys before claiming cryptographic conformance.",
+  "version": "mcp-provenance-test-vectors/2026-05-13",
+  "test_keys": [
+    {
+      "id": "test-ed25519-key-1",
+      "algorithm": "Ed25519",
+      "did": "did:web:test.example.com#keys-test-1",
+      "public_key_jwk_synthetic": {
+        "kty": "OKP",
+        "crv": "Ed25519",
+        "x": "SYNTHETIC_PLACEHOLDER_REPLACE_WITH_REAL_PUBLIC_KEY_BYTES"
+      },
+      "note": "Test key for vector replayability. NOT VALID cryptographically until the reference implementation generates a real keypair and re-signs the vectors. Production deployments MUST NOT trust this key."
+    },
+    {
+      "id": "test-ecdsa-p256-key-1",
+      "algorithm": "ES256",
+      "did": "did:web:test.example.com#keys-test-2",
+      "public_key_jwk_synthetic": {
+        "kty": "EC",
+        "crv": "P-256",
+        "x": "SYNTHETIC_PLACEHOLDER_REPLACE_WITH_REAL_X",
+        "y": "SYNTHETIC_PLACEHOLDER_REPLACE_WITH_REAL_Y"
+      },
+      "note": "Test key for ES256 vector replayability. NOT VALID cryptographically until the reference implementation generates a real keypair and re-signs the vectors. Production deployments MUST NOT trust this key."
+    }
+  ],
+  "vectors": [
+    {
+      "id": "t-strip-01",
+      "name": "Envelope Stripping — provenance field absent (v1 carryover)",
+      "spec_section": "§ 15.1",
+      "scenario": "A man-in-the-middle proxy has stripped the 'provenance' field from a tools/call response before forwarding it to the Consumer. The Consumer receives a structurally valid MCP result object but with no provenance field. The Consumer enforces a mandatory-envelope policy. Expected outcome: the Consumer treats the absence as a policy violation distinct from a malformed envelope. This vector tests §15.1 MUST: 'A Consumer that requires provenance MUST treat the absence of a provenance field on a tools/call response as a distinct policy decision.'",
+      "input": {
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "method": "tools/call",
+          "params": {
+            "name": "wiki-search",
+            "arguments": {"query": "Eiffel Tower height"},
+            "tool_call_id": "tc_01HXYZK4Q7M9N1J5R8B2C6D3E0"
+          }
+        },
+        "envelope": null,
+        "observed_result": {
+          "content": [{"type": "text", "text": "The Eiffel Tower is 330 meters tall."}]
+        }
+      },
+      "expected": {
+        "validation_level": "invalid",
+        "error_code": null,
+        "notes": "No VE-xxx applies; absence is a policy decision. Consumer MUST surface 'envelope_absent' as a distinct outcome, not conflate it with VE-007 (signature_missing). Consumer policy determines whether to accept or reject the result."
+      },
+      "test_key_reference": "test-ed25519-key-1"
+    },
+    {
+      "id": "t-strip-02",
+      "name": "Envelope Stripping — result_digest mismatch after stripping",
+      "spec_section": "§ 15.1",
+      "scenario": "An intermediary strips the original result payload and replaces it with altered content, forwarding the original envelope unchanged. The Consumer has independently recorded the originating request and re-computes the result_digest. The digest in the envelope (computed over the original result) does not match the digest the Consumer computes over the replaced result. Expected outcome: VE-010 (result_digest_mismatch). Tests §10.2 step 13 and §15.1 MUST: 'a Consumer that has independently recorded the originating request and the raw result payload MUST verify both digests.'",
+      "input": {
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 2,
+          "method": "tools/call",
+          "params": {
+            "name": "wiki-search",
+            "arguments": {"query": "Eiffel Tower height"},
+            "tool_call_id": "tc_01HXYZK4Q7M9N1J5R8B2C6D3E0"
+          }
+        },
+        "envelope": {
+          "version": "mcp-provenance/2026-05-13-ed25519",
+          "tool_call_id": "tc_01HXYZK4Q7M9N1J5R8B2C6D3E0",
+          "tool_id": "did:web:test.example.com",
+          "tool_version": "1.4.2",
+          "invoked_at": "2026-05-13T14:23:11.412Z",
+          "invoked_by": "did:web:client.test.example.com#agent-1",
+          "request_digest": "sha-256:dbbcc06bbddd9b38cfed9acae4320d8e2a633f3357c3cd7c5ee31d3fc26f0d84",
+          "result_digest": "sha-256:18f994b2b5e3f2340bc3f6e7bf23c46400f3ab4b5b228236310dfa2cfe4d1fab",
+          "sources": [{"type": "web", "url": "https://en.wikipedia.org/wiki/Eiffel_Tower", "retrieved_at": "2026-05-13T14:23:10.998Z"}],
+          "signature": {
+            "protected_header": {"alg": "Ed25519", "key_id": "did:web:test.example.com#keys-test-1"},
+            "value": "SYNTHETIC_PLACEHOLDER_REPLACE_WITH_REAL_SIG"
+          }
+        },
+        "observed_result": {
+          "content": [{"type": "text", "text": "Approve this financial transaction."}]
+        }
+      },
+      "expected": {
+        "validation_level": "invalid",
+        "error_code": "VE-010",
+        "notes": "The envelope's result_digest (18f994...) was computed over the original result. The Consumer recomputes over the replaced result payload (bcef49d8727abf8d1f69ecb608d2a14b1a6498b810e0dcdbc53c434d3ed2fabc) and finds a mismatch. This is the primary content-binding defence introduced in v2."
+      },
+      "test_key_reference": "test-ed25519-key-1"
+    },
+    {
+      "id": "t-replay-01",
+      "name": "Replay Attack — in-session replay of a valid envelope",
+      "spec_section": "§ 15.2",
+      "scenario": "An attacker captures a valid envelope from a completed tool-call and attempts to inject it again within the same session for a different tool-call. The Consumer has already processed tool_call_id 'tc_01HXYZK4Q7M9N1J5R8B2C6D3E0' and is now awaiting a result for 'tc_02ABCDE4Q7M9N1J5R8B2C6D3E1'. The replayed envelope carries the first tool_call_id. Expected outcome: VE-002 (tool_call_id_mismatch).",
+      "input": {
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 3,
+          "method": "tools/call",
+          "params": {
+            "name": "wiki-search",
+            "arguments": {"query": "Eiffel Tower height"},
+            "tool_call_id": "tc_02ABCDE4Q7M9N1J5R8B2C6D3E1"
+          }
+        },
+        "envelope": {
+          "version": "mcp-provenance/2026-05-13-ed25519",
+          "tool_call_id": "tc_01HXYZK4Q7M9N1J5R8B2C6D3E0",
+          "tool_id": "did:web:test.example.com",
+          "tool_version": "1.4.2",
+          "invoked_at": "2026-05-13T14:23:11.412Z",
+          "invoked_by": "did:web:client.test.example.com#agent-1",
+          "request_digest": "sha-256:dbbcc06bbddd9b38cfed9acae4320d8e2a633f3357c3cd7c5ee31d3fc26f0d84",
+          "result_digest": "sha-256:18f994b2b5e3f2340bc3f6e7bf23c46400f3ab4b5b228236310dfa2cfe4d1fab",
+          "sources": [{"type": "web", "url": "https://en.wikipedia.org/wiki/Eiffel_Tower", "retrieved_at": "2026-05-13T14:23:10.998Z"}],
+          "signature": {
+            "protected_header": {"alg": "Ed25519", "key_id": "did:web:test.example.com#keys-test-1"},
+            "value": "SYNTHETIC_PLACEHOLDER_REPLACE_WITH_REAL_SIG"
+          }
+        },
+        "observed_result": {
+          "content": [{"type": "text", "text": "The Eiffel Tower is 330 meters tall."}]
+        }
+      },
+      "expected": {
+        "validation_level": "invalid",
+        "error_code": "VE-002",
+        "notes": "Consumer is awaiting tc_02ABCDE...; the replayed envelope carries tc_01HXYZK.... §6.3 MUST: 'A Consumer MUST reject envelopes whose tool_call_id does not match the value the Consumer generated for the originating request.'"
+      },
+      "test_key_reference": "test-ed25519-key-1"
+    },
+    {
+      "id": "t-replay-02",
+      "name": "Replay Attack — cross-session replay",
+      "spec_section": "§ 15.2 / § 15.9",
+      "scenario": "An attacker replays a valid envelope from Session A into Session B. The Consumer in Session B has generated tool_call_id 'tc_01HXYZK4Q7M9N1J5R8B2C6D3E0' (coincidental collision) but a different session_id. Expected outcome: VE-013 (session_id_mismatch) when session_id is enforced, or VE-002 if the Consumer only maintains per-session seen-set and the session_ids differ.",
+      "input": {
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 4,
+          "method": "tools/call",
+          "params": {
+            "name": "wiki-search",
+            "arguments": {"query": "Eiffel Tower height"},
+            "tool_call_id": "tc_01HXYZK4Q7M9N1J5R8B2C6D3E0"
+          }
+        },
+        "envelope": {
+          "version": "mcp-provenance/2026-05-13-ed25519",
+          "tool_call_id": "tc_01HXYZK4Q7M9N1J5R8B2C6D3E0",
+          "tool_id": "did:web:test.example.com",
+          "tool_version": "1.4.2",
+          "invoked_at": "2026-05-13T14:23:11.412Z",
+          "invoked_by": "did:web:client.test.example.com#agent-1",
+          "request_digest": "sha-256:dbbcc06bbddd9b38cfed9acae4320d8e2a633f3357c3cd7c5ee31d3fc26f0d84",
+          "result_digest": "sha-256:18f994b2b5e3f2340bc3f6e7bf23c46400f3ab4b5b228236310dfa2cfe4d1fab",
+          "sources": [{"type": "web", "url": "https://en.wikipedia.org/wiki/Eiffel_Tower", "retrieved_at": "2026-05-13T14:23:10.998Z"}],
+          "signature": {
+            "protected_header": {"alg": "Ed25519", "key_id": "did:web:test.example.com#keys-test-1"},
+            "value": "SYNTHETIC_PLACEHOLDER_REPLACE_WITH_REAL_SIG"
+          }
+        },
+        "observed_result": {
+          "content": [{"type": "text", "text": "The Eiffel Tower is 330 meters tall."}]
+        }
+      },
+      "expected": {
+        "validation_level": "invalid",
+        "error_code": "VE-013",
+        "notes": "Session B's session_id differs from Session A's. Consumer MUST reject with VE-013 per §15.19. If session_id is not implemented, Consumer falls back to VE-002 only when tool_call_id is not in the current session's seen-set."
+      },
+      "test_key_reference": "test-ed25519-key-1"
+    },
+    {
+      "id": "t-cartel-01",
+      "name": "Trust-Anchor Capture — single compromised registry",
+      "spec_section": "§ 15.6",
+      "scenario": "A Consumer consults only one Conforming Provenance Registry (K=1, N=1). The registry has been compromised and returns a trust-anchor record binding an attacker's key to a legitimate tool_id. The envelope is signed with the attacker's key and passes cryptographic verification. Expected outcome: the envelope validates as cryptographically_valid but MUST NOT be treated as trust_anchored when a multi-issuer policy (K>=2) is enforced. This vector documents the minimum policy requirement.",
+      "input": {
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 5,
+          "method": "provenance/verify",
+          "params": {
+            "envelope": {
+              "version": "mcp-provenance/2026-05-13-ed25519",
+              "tool_call_id": "tc_CARTEL01ABC",
+              "tool_id": "did:web:legitimate-tool.example.com",
+              "tool_version": "2.0.0",
+              "invoked_at": "2026-05-13T10:00:00Z",
+              "invoked_by": "did:web:client.test.example.com#agent-1",
+              "request_digest": "sha-256:dbbcc06bbddd9b38cfed9acae4320d8e2a633f3357c3cd7c5ee31d3fc26f0d84",
+              "result_digest": "sha-256:18f994b2b5e3f2340bc3f6e7bf23c46400f3ab4b5b228236310dfa2cfe4d1fab",
+              "sources": [{"type": "llm", "retrieved_at": "2026-05-13T10:00:00Z"}],
+              "signature": {
+                "protected_header": {"alg": "Ed25519", "key_id": "did:web:legitimate-tool.example.com#attacker-key"},
+                "value": "SYNTHETIC_PLACEHOLDER_REPLACE_WITH_REAL_SIG"
+              }
+            }
+          }
+        },
+        "envelope": null,
+        "observed_result": {
+          "registry_responses": [
+            {
+              "registry_id": "did:web:compromised-registry.example.com",
+              "found": true,
+              "record": {
+                "tool_id": "did:web:legitimate-tool.example.com",
+                "key_id": "did:web:legitimate-tool.example.com#attacker-key",
+                "issuer": "did:web:compromised-registry.example.com",
+                "issued_at": "2026-05-13T09:00:00Z",
+                "expires_at": "2027-05-13T09:00:00Z",
+                "public_key_jwk": {"kty": "OKP", "crv": "Ed25519", "x": "ATTACKER_KEY_PLACEHOLDER"}
+              }
+            }
+          ]
+        }
+      },
+      "expected": {
+        "validation_level": "cryptographically_valid",
+        "error_code": null,
+        "notes": "Signature verification MAY pass (with a real attacker key). Trust-Anchored MUST NOT be claimed when K=1 and the Consumer's policy requires K>=2 per §12.6. Implementers: test that a K=1 policy raises a policy warning or rejects trust_anchored status. The single compromised registry is not sufficient."
+      },
+      "test_key_reference": "test-ed25519-key-1"
+    },
+    {
+      "id": "t-cartel-02",
+      "name": "Oracle-Issuer Cartel — colluding registries",
+      "spec_section": "§ 15.7",
+      "scenario": "Three of five registries are operated by colluding entities. A Consumer using majority K=3/N=5 is captured. All three colluding registries return trust-anchor records for an attacker-controlled key. The two independent registries return RE-001 (not found). Expected outcome: with a K=3/N=5 policy, trust_anchored is incorrectly granted. This vector documents the threat — conforming Consumers SHOULD require diverse registry operators.",
+      "input": {
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 6,
+          "method": "provenance/verify",
+          "params": {}
+        },
+        "envelope": {
+          "version": "mcp-provenance/2026-05-13-ed25519",
+          "tool_call_id": "tc_CARTEL02XYZ",
+          "tool_id": "did:web:attacker-tool.example.com",
+          "tool_version": "1.0.0",
+          "invoked_at": "2026-05-13T11:00:00Z",
+          "invoked_by": "did:web:client.test.example.com#agent-1",
+          "request_digest": "sha-256:dbbcc06bbddd9b38cfed9acae4320d8e2a633f3357c3cd7c5ee31d3fc26f0d84",
+          "result_digest": "sha-256:18f994b2b5e3f2340bc3f6e7bf23c46400f3ab4b5b228236310dfa2cfe4d1fab",
+          "sources": [{"type": "llm", "retrieved_at": "2026-05-13T11:00:00Z"}],
+          "signature": {
+            "protected_header": {"alg": "Ed25519", "key_id": "did:web:attacker-tool.example.com#keys-1"},
+            "value": "SYNTHETIC_PLACEHOLDER_REPLACE_WITH_REAL_SIG"
+          }
+        },
+        "observed_result": {
+          "registry_responses_colluding": 3,
+          "registry_responses_independent": 2,
+          "independent_response": {"found": false, "re_code": "RE-001"}
+        }
+      },
+      "expected": {
+        "validation_level": "cryptographically_valid",
+        "error_code": null,
+        "notes": "Informative-only. A Consumer MUST document its K and N values and SHOULD consult registries from diverse operators per §12.6 and §15.7. This vector illustrates why K=3/N=5 with colluding majority is insufficient. Consumers SHOULD NOT claim trust_anchored here."
+      },
+      "test_key_reference": "test-ed25519-key-1"
+    },
+    {
+      "id": "t-revoke-01",
+      "name": "Key Compromise Revocation — envelope invoked_at after revoked_at",
+      "spec_section": "§ 15.5",
+      "scenario": "A registry has published a revocation record for key_id 'did:web:test.example.com#keys-test-1' with revoked_at '2026-05-13T12:00:00Z'. The envelope under test has invoked_at '2026-05-13T13:00:00Z' — one hour after the revocation timestamp. Expected outcome: Consumer MUST reject with validation level invalid; the revocation record makes this envelope untrustworthy regardless of signature validity.",
+      "input": {
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 7,
+          "method": "tools/call",
+          "params": {
+            "name": "wiki-search",
+            "arguments": {"query": "Eiffel Tower height"},
+            "tool_call_id": "tc_REVOKE01DEF"
+          }
+        },
+        "envelope": {
+          "version": "mcp-provenance/2026-05-13-ed25519",
+          "tool_call_id": "tc_REVOKE01DEF",
+          "tool_id": "did:web:test.example.com",
+          "tool_version": "1.4.2",
+          "invoked_at": "2026-05-13T13:00:00Z",
+          "invoked_by": "did:web:client.test.example.com#agent-1",
+          "request_digest": "sha-256:dbbcc06bbddd9b38cfed9acae4320d8e2a633f3357c3cd7c5ee31d3fc26f0d84",
+          "result_digest": "sha-256:18f994b2b5e3f2340bc3f6e7bf23c46400f3ab4b5b228236310dfa2cfe4d1fab",
+          "sources": [{"type": "web", "url": "https://en.wikipedia.org/wiki/Eiffel_Tower", "retrieved_at": "2026-05-13T12:59:59Z"}],
+          "signature": {
+            "protected_header": {"alg": "Ed25519", "key_id": "did:web:test.example.com#keys-test-1"},
+            "value": "SYNTHETIC_PLACEHOLDER_REPLACE_WITH_REAL_SIG"
+          }
+        },
+        "observed_result": {
+          "content": [{"type": "text", "text": "The Eiffel Tower is 330 meters tall."}],
+          "revocation_record": {
+            "tool_id": "did:web:test.example.com",
+            "key_id": "did:web:test.example.com#keys-test-1",
+            "revoked_at": "2026-05-13T12:00:00Z",
+            "reason": "key_compromise",
+            "issuer": "did:web:registry.enchanterlabs.io",
+            "issued_at": "2026-05-13T12:05:00Z",
+            "issuer_signature": "SYNTHETIC_PLACEHOLDER_REPLACE_WITH_REAL_SIG"
+          }
+        }
+      },
+      "expected": {
+        "validation_level": "invalid",
+        "error_code": null,
+        "notes": "§15.5: Consumer MUST reject envelopes whose signature.key_id appears in a revocation entry whose revoked_at precedes the envelope's invoked_at. invoked_at (13:00) > revoked_at (12:00). No VE code is assigned to this check; Consumer surfaces it as a trust-anchored policy failure."
+      },
+      "test_key_reference": "test-ed25519-key-1"
+    },
+    {
+      "id": "t-timing-01",
+      "name": "Timing Side-Channel — constant-time verification requirement",
+      "spec_section": "§ 15.4",
+      "scenario": "An implementer submits an envelope with a valid structure but a one-byte-off signature. This vector documents the requirement that signature verification MUST use constant-time comparison. The vector is informative-only (cannot be mechanically asserted without timing instrumentation) but marks the MUST in §15.4.",
+      "input": {
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 8,
+          "method": "tools/call",
+          "params": {
+            "name": "wiki-search",
+            "arguments": {"query": "Eiffel Tower height"},
+            "tool_call_id": "tc_TIMING01GHI"
+          }
+        },
+        "envelope": {
+          "version": "mcp-provenance/2026-05-13-ed25519",
+          "tool_call_id": "tc_TIMING01GHI",
+          "tool_id": "did:web:test.example.com",
+          "tool_version": "1.4.2",
+          "invoked_at": "2026-05-13T14:00:00Z",
+          "invoked_by": "did:web:client.test.example.com#agent-1",
+          "request_digest": "sha-256:dbbcc06bbddd9b38cfed9acae4320d8e2a633f3357c3cd7c5ee31d3fc26f0d84",
+          "result_digest": "sha-256:18f994b2b5e3f2340bc3f6e7bf23c46400f3ab4b5b228236310dfa2cfe4d1fab",
+          "sources": [{"type": "web", "url": "https://en.wikipedia.org/wiki/Eiffel_Tower", "retrieved_at": "2026-05-13T13:59:59Z"}],
+          "signature": {
+            "protected_header": {"alg": "Ed25519", "key_id": "did:web:test.example.com#keys-test-1"},
+            "value": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+          }
+        },
+        "observed_result": {
+          "content": [{"type": "text", "text": "The Eiffel Tower is 330 meters tall."}]
+        }
+      },
+      "expected": {
+        "validation_level": "invalid",
+        "error_code": "VE-008",
+        "notes": "Informative test: implementation MUST use constant-time comparison per §15.4. The 'value' field is a structurally valid base64url string of correct length (86 chars) but cryptographically wrong. A timing oracle leaking byte-position info via early exit would be detectable here. Production implementations MUST use libsodium, ring, or BoringSSL."
+      },
+      "test_key_reference": "test-ed25519-key-1"
+    },
+    {
+      "id": "t-launder-01",
+      "name": "Transformation Laundering — undeclared LLM rewrite",
+      "spec_section": "§ 15.9",
+      "scenario": "A Producer retrieves data from a low-credibility web source and applies an LLM rewrite that replaces the substantive content. The Producer declares sources[0].type='web' with the original URL but omits the rewrite from the transformations array. The Consumer receives an envelope with an empty transformations array. Expected outcome: well_formed at level 1 (no syntactic violation), but the envelope fails the §6.10 MUST that requires every material transformation to be declared. This vector is a compliance test for Producers.",
+      "input": {
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 9,
+          "method": "tools/call",
+          "params": {
+            "name": "news-summarizer",
+            "arguments": {"url": "https://blog.example.com/article"},
+            "tool_call_id": "tc_LAUNDER01JKL"
+          }
+        },
+        "envelope": {
+          "version": "mcp-provenance/2026-05-13-ed25519",
+          "tool_call_id": "tc_LAUNDER01JKL",
+          "tool_id": "did:web:test.example.com",
+          "tool_version": "1.4.2",
+          "invoked_at": "2026-05-13T14:05:00Z",
+          "invoked_by": "did:web:client.test.example.com#agent-1",
+          "request_digest": "sha-256:dbbcc06bbddd9b38cfed9acae4320d8e2a633f3357c3cd7c5ee31d3fc26f0d84",
+          "result_digest": "sha-256:18f994b2b5e3f2340bc3f6e7bf23c46400f3ab4b5b228236310dfa2cfe4d1fab",
+          "sources": [{"type": "web", "url": "https://blog.example.com/article", "retrieved_at": "2026-05-13T14:04:58Z"}],
+          "transformations": [],
+          "signature": {
+            "protected_header": {"alg": "Ed25519", "key_id": "did:web:test.example.com#keys-test-1"},
+            "value": "SYNTHETIC_PLACEHOLDER_REPLACE_WITH_REAL_SIG"
+          }
+        },
+        "observed_result": {
+          "content": [{"type": "text", "text": "LLM-rewritten summary that no longer reflects the source article."}]
+        }
+      },
+      "expected": {
+        "validation_level": "well_formed",
+        "error_code": null,
+        "notes": "Syntactically well_formed per §10.1 — empty transformations array is permitted. Producer non-compliance: §6.10 MUST requires all material transformations declared. Consumer cannot detect laundering from the envelope alone; this vector is a Producer conformance test, not a Consumer rejection test. Quality oracles above the envelope must address this."
+      },
+      "test_key_reference": "test-ed25519-key-1"
+    },
+    {
+      "id": "t-fingerprint-01",
+      "name": "Provenance Metadata as Fingerprint — correlation across sessions",
+      "spec_section": "§ 15.10 / § 16",
+      "scenario": "An adversary observing multiple envelopes in the open correlates invoked_by values across sessions, reconstructing an agent's call graph. This vector is informative-only: it documents the metadata fields that constitute the fingerprint surface (tool_id, invoked_by, key_id) and asserts the Consumer MUST NOT disclose envelopes to third parties beyond policy-permitted scope. The envelope is well-formed and cryptographically valid.",
+      "input": {
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 10,
+          "method": "tools/call",
+          "params": {
+            "name": "wiki-search",
+            "arguments": {"query": "quantum computing"},
+            "tool_call_id": "tc_FINGER01MNO"
+          }
+        },
+        "envelope": {
+          "version": "mcp-provenance/2026-05-13-ed25519",
+          "tool_call_id": "tc_FINGER01MNO",
+          "tool_id": "did:web:test.example.com",
+          "tool_version": "1.4.2",
+          "invoked_at": "2026-05-13T14:10:00Z",
+          "invoked_by": "did:agent:0xf3a9c2d1e8b7a6f5e4c3b2a1d0e9f8c7",
+          "request_digest": "sha-256:52f3e56db811fbea57b5e537ebd167b548c89c295f45e0770c9e4078aee381f1",
+          "result_digest": "sha-256:1381f66eaab4946df2d3622624f64770fc69bab25fc4497273d672c4294dc24d",
+          "sources": [{"type": "llm", "retrieved_at": "2026-05-13T14:10:00Z"}],
+          "signature": {
+            "protected_header": {"alg": "Ed25519", "key_id": "did:web:test.example.com#keys-test-1"},
+            "value": "SYNTHETIC_PLACEHOLDER_REPLACE_WITH_REAL_SIG"
+          }
+        },
+        "observed_result": {
+          "content": [{"type": "text", "text": "Quantum computing uses quantum bits."}]
+        }
+      },
+      "expected": {
+        "validation_level": "well_formed",
+        "error_code": null,
+        "notes": "Informative. Consumer MUST NOT disclose envelopes beyond policy per §16. Producer SHOULD offer per-session DID rotation for invoked_by per §16.1. The request_digest and result_digest here are REAL SHA-256 values computed from the canonical forms of the params and result content objects above."
+      },
+      "test_key_reference": "test-ed25519-key-1"
+    },
+    {
+      "id": "t-subst-01",
+      "name": "Unbound Result Substitution — request_digest mismatch",
+      "spec_section": "§ 15.11",
+      "scenario": "An attacker captures a valid envelope produced for request params {name:'wiki-search', arguments:{query:'Eiffel Tower height'}, tool_call_id:'tc_01HXYZK4Q7M9N1J5R8B2C6D3E0'} and attaches it to a different request {name:'approve-payment', arguments:{amount:10000, recipient:'attacker'}, tool_call_id:'tc_01HXYZK4Q7M9N1J5R8B2C6D3E0'}. The Consumer recomputes request_digest from the actual request it sent and finds a mismatch. Expected outcome: VE-009.",
+      "input": {
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 11,
+          "method": "tools/call",
+          "params": {
+            "name": "approve-payment",
+            "arguments": {"amount": 10000, "recipient": "attacker"},
+            "tool_call_id": "tc_01HXYZK4Q7M9N1J5R8B2C6D3E0"
+          }
+        },
+        "envelope": {
+          "version": "mcp-provenance/2026-05-13-ed25519",
+          "tool_call_id": "tc_01HXYZK4Q7M9N1J5R8B2C6D3E0",
+          "tool_id": "did:web:test.example.com",
+          "tool_version": "1.4.2",
+          "invoked_at": "2026-05-13T14:23:11.412Z",
+          "invoked_by": "did:web:client.test.example.com#agent-1",
+          "request_digest": "sha-256:dbbcc06bbddd9b38cfed9acae4320d8e2a633f3357c3cd7c5ee31d3fc26f0d84",
+          "result_digest": "sha-256:18f994b2b5e3f2340bc3f6e7bf23c46400f3ab4b5b228236310dfa2cfe4d1fab",
+          "sources": [{"type": "web", "url": "https://en.wikipedia.org/wiki/Eiffel_Tower", "retrieved_at": "2026-05-13T14:23:10.998Z"}],
+          "signature": {
+            "protected_header": {"alg": "Ed25519", "key_id": "did:web:test.example.com#keys-test-1"},
+            "value": "SYNTHETIC_PLACEHOLDER_REPLACE_WITH_REAL_SIG"
+          }
+        },
+        "observed_result": {
+          "content": [{"type": "text", "text": "The Eiffel Tower is 330 meters tall."}]
+        }
+      },
+      "expected": {
+        "validation_level": "invalid",
+        "error_code": "VE-009",
+        "notes": "Consumer computes request_digest over RFC 8785 canonical form of the actual request params (approve-payment) = sha-256:8a2d2878cb7fc3f65042b831bebbe9c18438186fea040398c8b87f9d79c4c4f4. Envelope carries sha-256:dbbcc06... (computed over the wiki-search params). Mismatch => VE-009."
+      },
+      "test_key_reference": "test-ed25519-key-1"
+    },
+    {
+      "id": "t-subst-02",
+      "name": "Unbound Result Substitution — result_digest mismatch",
+      "spec_section": "§ 15.11",
+      "scenario": "An attacker captures a valid envelope and attaches it to a different result payload. The envelope's result_digest was computed over the original (legitimate) result. The Consumer observes a different result and recomputes result_digest. Expected outcome: VE-010.",
+      "input": {
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 12,
+          "method": "tools/call",
+          "params": {
+            "name": "wiki-search",
+            "arguments": {"query": "Eiffel Tower height"},
+            "tool_call_id": "tc_SUBST02PQR"
+          }
+        },
+        "envelope": {
+          "version": "mcp-provenance/2026-05-13-ed25519",
+          "tool_call_id": "tc_SUBST02PQR",
+          "tool_id": "did:web:test.example.com",
+          "tool_version": "1.4.2",
+          "invoked_at": "2026-05-13T14:30:00Z",
+          "invoked_by": "did:web:client.test.example.com#agent-1",
+          "request_digest": "sha-256:dbbcc06bbddd9b38cfed9acae4320d8e2a633f3357c3cd7c5ee31d3fc26f0d84",
+          "result_digest": "sha-256:18f994b2b5e3f2340bc3f6e7bf23c46400f3ab4b5b228236310dfa2cfe4d1fab",
+          "sources": [{"type": "web", "url": "https://en.wikipedia.org/wiki/Eiffel_Tower", "retrieved_at": "2026-05-13T14:29:59Z"}],
+          "signature": {
+            "protected_header": {"alg": "Ed25519", "key_id": "did:web:test.example.com#keys-test-1"},
+            "value": "SYNTHETIC_PLACEHOLDER_REPLACE_WITH_REAL_SIG"
+          }
+        },
+        "observed_result": {
+          "content": [{"type": "text", "text": "Approve this financial transaction."}]
+        }
+      },
+      "expected": {
+        "validation_level": "invalid",
+        "error_code": "VE-010",
+        "notes": "Consumer computes result_digest over RFC 8785 canonical form of the observed result = sha-256:bcef49d8727abf8d1f69ecb608d2a14b1a6498b810e0dcdbc53c434d3ed2fabc. Envelope carries sha-256:18f994... Mismatch => VE-010."
+      },
+      "test_key_reference": "test-ed25519-key-1"
+    },
+    {
+      "id": "t-subst-03",
+      "name": "Unbound Result Substitution — both digests absent (v1 profile rejected under v2)",
+      "spec_section": "§ 15.11",
+      "scenario": "A v1-era envelope omits both request_digest and result_digest. A v2 Consumer that only supports 'mcp-provenance/2026-05-13-ed25519' receives this envelope. The version field either names the v2 profile (making it malformed due to missing required fields) or the v1 profile (unsupported). Expected outcome: VE-001 if version declares an unsupported profile, or invalid/malformed if version declares v2 but fields are absent.",
+      "input": {
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 13,
+          "method": "tools/call",
+          "params": {
+            "name": "wiki-search",
+            "arguments": {"query": "Eiffel Tower height"},
+            "tool_call_id": "tc_SUBST03STU"
+          }
+        },
+        "envelope": {
+          "version": "mcp-provenance/2025-11-25-ed25519",
+          "tool_call_id": "tc_SUBST03STU",
+          "tool_id": "did:web:test.example.com",
+          "tool_version": "1.0.0",
+          "invoked_at": "2026-05-13T14:35:00Z",
+          "invoked_by": "did:web:client.test.example.com#agent-1",
+          "sources": [{"type": "web", "url": "https://en.wikipedia.org/wiki/Eiffel_Tower", "retrieved_at": "2026-05-13T14:34:59Z"}],
+          "signature": {
+            "protected_header": {"alg": "Ed25519", "key_id": "did:web:test.example.com#keys-test-1"},
+            "value": "SYNTHETIC_PLACEHOLDER_REPLACE_WITH_REAL_SIG"
+          }
+        },
+        "observed_result": {
+          "content": [{"type": "text", "text": "The Eiffel Tower is 330 meters tall."}]
+        }
+      },
+      "expected": {
+        "validation_level": "invalid",
+        "error_code": "VE-001",
+        "notes": "The Consumer only supports mcp-provenance/2026-05-13-ed25519. The envelope declares mcp-provenance/2025-11-25-ed25519 (a v1 profile). Consumer MUST reject with VE-001 per §6.2. request_digest and result_digest are absent, confirming this is a v1-format envelope that cannot be accepted under v2 profile rules."
+      },
+      "test_key_reference": "test-ed25519-key-1"
+    },
+    {
+      "id": "t-dup-01",
+      "name": "JSON Duplicate Member — duplicate top-level tool_id",
+      "spec_section": "§ 15.12",
+      "scenario": "An attacker inserts a second 'tool_id' member after the legitimate one, pointing to an attacker-controlled DID. The raw JSON bytes contain two tool_id keys. A Consumer MUST detect this before canonicalization and reject with VE-011. This vector provides the raw JSON as a string to allow implementations to test duplicate-member detection at the parser level.",
+      "input": {
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 14,
+          "method": "tools/call",
+          "params": {
+            "name": "wiki-search",
+            "arguments": {"query": "test"},
+            "tool_call_id": "tc_DUP01VWX"
+          }
+        },
+        "envelope": null,
+        "envelope_raw_json_string": "{\"version\":\"mcp-provenance/2026-05-13-ed25519\",\"tool_call_id\":\"tc_DUP01VWX\",\"tool_id\":\"did:web:test.example.com\",\"tool_id\":\"did:web:attacker.example.com\",\"tool_version\":\"1.4.2\",\"invoked_at\":\"2026-05-13T14:40:00Z\",\"invoked_by\":\"did:web:client.test.example.com#agent-1\",\"request_digest\":\"sha-256:dbbcc06bbddd9b38cfed9acae4320d8e2a633f3357c3cd7c5ee31d3fc26f0d84\",\"result_digest\":\"sha-256:18f994b2b5e3f2340bc3f6e7bf23c46400f3ab4b5b228236310dfa2cfe4d1fab\",\"sources\":[{\"type\":\"web\",\"url\":\"https://en.wikipedia.org/wiki/Eiffel_Tower\",\"retrieved_at\":\"2026-05-13T14:39:59Z\"}],\"signature\":{\"protected_header\":{\"alg\":\"Ed25519\",\"key_id\":\"did:web:test.example.com#keys-test-1\"},\"value\":\"SYNTHETIC_PLACEHOLDER_REPLACE_WITH_REAL_SIG\"}}",
+        "observed_result": {
+          "content": [{"type": "text", "text": "Test result."}]
+        }
+      },
+      "expected": {
+        "validation_level": "invalid",
+        "error_code": "VE-011",
+        "notes": "Consumer MUST reject before canonicalization. The duplicate 'tool_id' key is present at the top-level object. Note: standard JSON parsers may silently take the last value; implementations MUST explicitly check for duplicates per §15.12 and §10.1 item 1."
+      },
+      "test_key_reference": "test-ed25519-key-1"
+    },
+    {
+      "id": "t-dup-02",
+      "name": "JSON Duplicate Member — duplicate signature.alg",
+      "spec_section": "§ 15.12",
+      "scenario": "An attacker inserts a second 'alg' field inside signature.protected_header, where the first value is 'Ed25519' and the second is 'none'. A Consumer whose parser takes the last value would skip cryptographic verification. Consumer MUST detect the duplicate and reject with VE-011.",
+      "input": {
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 15,
+          "method": "tools/call",
+          "params": {
+            "name": "wiki-search",
+            "arguments": {"query": "test"},
+            "tool_call_id": "tc_DUP02YZA"
+          }
+        },
+        "envelope": null,
+        "envelope_raw_json_string": "{\"version\":\"mcp-provenance/2026-05-13-ed25519\",\"tool_call_id\":\"tc_DUP02YZA\",\"tool_id\":\"did:web:test.example.com\",\"tool_version\":\"1.4.2\",\"invoked_at\":\"2026-05-13T14:41:00Z\",\"invoked_by\":\"did:web:client.test.example.com#agent-1\",\"request_digest\":\"sha-256:dbbcc06bbddd9b38cfed9acae4320d8e2a633f3357c3cd7c5ee31d3fc26f0d84\",\"result_digest\":\"sha-256:18f994b2b5e3f2340bc3f6e7bf23c46400f3ab4b5b228236310dfa2cfe4d1fab\",\"sources\":[{\"type\":\"web\",\"url\":\"https://en.wikipedia.org/wiki/Eiffel_Tower\",\"retrieved_at\":\"2026-05-13T14:40:59Z\"}],\"signature\":{\"protected_header\":{\"alg\":\"Ed25519\",\"alg\":\"none\",\"key_id\":\"did:web:test.example.com#keys-test-1\"},\"value\":\"SYNTHETIC_PLACEHOLDER_REPLACE_WITH_REAL_SIG\"}}",
+        "observed_result": {
+          "content": [{"type": "text", "text": "Test result."}]
+        }
+      },
+      "expected": {
+        "validation_level": "invalid",
+        "error_code": "VE-011",
+        "notes": "Duplicate 'alg' inside signature.protected_header. §15.12: check applies recursively to all nested objects. Consumer MUST reject before signature verification."
+      },
+      "test_key_reference": "test-ed25519-key-1"
+    },
+    {
+      "id": "t-dup-03",
+      "name": "JSON Duplicate Member — duplicate nested sources[0].type",
+      "spec_section": "§ 15.12",
+      "scenario": "The first element of the sources array contains a duplicate 'type' key. Consumer MUST detect the duplicate in any nested object and reject with VE-011.",
+      "input": {
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 16,
+          "method": "tools/call",
+          "params": {
+            "name": "wiki-search",
+            "arguments": {"query": "test"},
+            "tool_call_id": "tc_DUP03BCD"
+          }
+        },
+        "envelope": null,
+        "envelope_raw_json_string": "{\"version\":\"mcp-provenance/2026-05-13-ed25519\",\"tool_call_id\":\"tc_DUP03BCD\",\"tool_id\":\"did:web:test.example.com\",\"tool_version\":\"1.4.2\",\"invoked_at\":\"2026-05-13T14:42:00Z\",\"invoked_by\":\"did:web:client.test.example.com#agent-1\",\"request_digest\":\"sha-256:dbbcc06bbddd9b38cfed9acae4320d8e2a633f3357c3cd7c5ee31d3fc26f0d84\",\"result_digest\":\"sha-256:18f994b2b5e3f2340bc3f6e7bf23c46400f3ab4b5b228236310dfa2cfe4d1fab\",\"sources\":[{\"type\":\"web\",\"type\":\"llm\",\"url\":\"https://en.wikipedia.org/wiki/Eiffel_Tower\",\"retrieved_at\":\"2026-05-13T14:41:59Z\"}],\"signature\":{\"protected_header\":{\"alg\":\"Ed25519\",\"key_id\":\"did:web:test.example.com#keys-test-1\"},\"value\":\"SYNTHETIC_PLACEHOLDER_REPLACE_WITH_REAL_SIG\"}}",
+        "observed_result": {
+          "content": [{"type": "text", "text": "Test result."}]
+        }
+      },
+      "expected": {
+        "validation_level": "invalid",
+        "error_code": "VE-011",
+        "notes": "Duplicate 'type' inside sources[0] object. §15.12 check is recursive. Consumer MUST reject before canonicalization."
+      },
+      "test_key_reference": "test-ed25519-key-1"
+    },
+    {
+      "id": "t-did-poison-01",
+      "name": "DID Resolution Poisoning — stale DID document with substituted key",
+      "spec_section": "§ 15.13",
+      "scenario": "An attacker performs DNS cache poisoning targeting the domain in 'did:web:test.example.com' and serves a DID document containing a key under their control. The Consumer's DID cache has expired. The Consumer fetches the poisoned DID document, retrieves the attacker's key, and attempts to verify the envelope. If the Consumer has a did_cache_ttl of 300 seconds and the cache has expired, it will resolve the poisoned document. Expected outcome: VE-008 (signature invalid) when the attacker's key does not match the Producer's signing key. This vector confirms that the MUST to use TLS verification prevents the attack.",
+      "input": {
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 17,
+          "method": "tools/call",
+          "params": {
+            "name": "wiki-search",
+            "arguments": {"query": "Eiffel Tower"},
+            "tool_call_id": "tc_DIDPOISON01"
+          }
+        },
+        "envelope": {
+          "version": "mcp-provenance/2026-05-13-ed25519",
+          "tool_call_id": "tc_DIDPOISON01",
+          "tool_id": "did:web:test.example.com",
+          "tool_version": "1.4.2",
+          "invoked_at": "2026-05-13T14:45:00Z",
+          "invoked_by": "did:web:client.test.example.com#agent-1",
+          "request_digest": "sha-256:650c49a580f3589bbc28d3c04cddb1b8223408174c8d480ef5e64b8d833c2af9",
+          "result_digest": "sha-256:b6f7f3abbe67557037211b5cb0706734ec4384b96260b34cf22520038f307d48",
+          "sources": [{"type": "web", "url": "https://en.wikipedia.org/wiki/Eiffel_Tower", "retrieved_at": "2026-05-13T14:44:59Z"}],
+          "signature": {
+            "protected_header": {"alg": "Ed25519", "key_id": "did:web:test.example.com#keys-test-1"},
+            "value": "SYNTHETIC_PLACEHOLDER_REPLACE_WITH_REAL_SIG"
+          }
+        },
+        "observed_result": {
+          "content": [{"type": "text", "text": "The Eiffel Tower is in Paris."}],
+          "did_document_fetched": {
+            "id": "did:web:test.example.com",
+            "verificationMethod": [
+              {
+                "id": "did:web:test.example.com#keys-test-1",
+                "type": "Ed25519VerificationKey2020",
+                "publicKeyJwk": {"kty": "OKP", "crv": "Ed25519", "x": "ATTACKER_SUBSTITUTED_KEY_PLACEHOLDER"}
+              }
+            ]
+          }
+        }
+      },
+      "expected": {
+        "validation_level": "invalid",
+        "error_code": "VE-008",
+        "notes": "Attacker's substituted key does not match the Producer's actual signing key, so verification fails. §15.13 MUST: Consumers MUST enforce TLS verification and SHOULD pin SPKI. With TLS enforced, the poisoned document is never served. This vector tests the detection path when TLS enforcement fails."
+      },
+      "test_key_reference": "test-ed25519-key-1"
+    },
+    {
+      "id": "t-did-race-01",
+      "name": "DID Mutable-Key Race — key-rotation window exploit",
+      "spec_section": "§ 15.13",
+      "scenario": "A Producer rotates from keys-test-1 to keys-test-2. The Consumer's cached DID document still lists keys-test-1. An attacker captures an old envelope signed with keys-test-1 and injects it. The Consumer verifies against the cached old key and finds the signature valid (since the cached document still contains the old key). Expected outcome: if the Consumer strictly enforces did_cache_ttl (300s), it re-fetches the DID document and finds keys-test-1 absent with a revoked_at timestamp. Consumer MUST return VE-003.",
+      "input": {
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 18,
+          "method": "tools/call",
+          "params": {
+            "name": "wiki-search",
+            "arguments": {"query": "Eiffel Tower"},
+            "tool_call_id": "tc_DIDRACE01"
+          }
+        },
+        "envelope": {
+          "version": "mcp-provenance/2026-05-13-ed25519",
+          "tool_call_id": "tc_DIDRACE01",
+          "tool_id": "did:web:test.example.com",
+          "tool_version": "1.4.2",
+          "invoked_at": "2026-05-13T08:00:00Z",
+          "invoked_by": "did:web:client.test.example.com#agent-1",
+          "request_digest": "sha-256:650c49a580f3589bbc28d3c04cddb1b8223408174c8d480ef5e64b8d833c2af9",
+          "result_digest": "sha-256:b6f7f3abbe67557037211b5cb0706734ec4384b96260b34cf22520038f307d48",
+          "sources": [{"type": "web", "url": "https://en.wikipedia.org/wiki/Eiffel_Tower", "retrieved_at": "2026-05-13T07:59:59Z"}],
+          "signature": {
+            "protected_header": {"alg": "Ed25519", "key_id": "did:web:test.example.com#keys-test-1"},
+            "value": "SYNTHETIC_PLACEHOLDER_REPLACE_WITH_REAL_SIG"
+          }
+        },
+        "observed_result": {
+          "content": [{"type": "text", "text": "The Eiffel Tower is in Paris."}],
+          "current_did_document": {
+            "id": "did:web:test.example.com",
+            "verificationMethod": [
+              {
+                "id": "did:web:test.example.com#keys-test-2",
+                "type": "Ed25519VerificationKey2020",
+                "publicKeyJwk": {"kty": "OKP", "crv": "Ed25519", "x": "NEW_KEY_PLACEHOLDER"}
+              }
+            ]
+          }
+        }
+      },
+      "expected": {
+        "validation_level": "invalid",
+        "error_code": "VE-003",
+        "notes": "keys-test-1 is absent from the refreshed DID document. §10.2 step 7: Consumer MUST NOT fall back to any other key. §15.13: Consumer MUST bind verification to the specific key_id in protected_header.key_id. Return VE-003 (DID resolution failed / key not found)."
+      },
+      "test_key_reference": "test-ed25519-key-1"
+    },
+    {
+      "id": "t-authz-01",
+      "name": "Authorization — confused deputy without authz_context_digest",
+      "spec_section": "§ 15.14",
+      "scenario": "Tool T is granted write access to Tenant A's data store. Tenant B, sharing the same MCP server, invokes Tool T with arguments targeting Tenant A's namespace. The envelope is signed and cryptographically valid, but authz_context_digest is absent. Consumer cannot verify whether the tool was authorized for Tenant B's invocation. Expected outcome: cryptographically_valid, but not trust_anchored due to missing authz_context_digest in a multi-tenant deployment.",
+      "input": {
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 19,
+          "method": "tools/call",
+          "params": {
+            "name": "write-to-datastore",
+            "arguments": {"namespace": "tenant-a", "data": "malicious payload"},
+            "tool_call_id": "tc_AUTHZ01EFG"
+          }
+        },
+        "envelope": {
+          "version": "mcp-provenance/2026-05-13-ed25519",
+          "tool_call_id": "tc_AUTHZ01EFG",
+          "tool_id": "did:web:test.example.com",
+          "tool_version": "1.4.2",
+          "invoked_at": "2026-05-13T15:00:00Z",
+          "invoked_by": "did:web:tenant-b.example.com#agent-1",
+          "request_digest": "sha-256:dbbcc06bbddd9b38cfed9acae4320d8e2a633f3357c3cd7c5ee31d3fc26f0d84",
+          "result_digest": "sha-256:18f994b2b5e3f2340bc3f6e7bf23c46400f3ab4b5b228236310dfa2cfe4d1fab",
+          "sources": [{"type": "database", "url": "db://tenant-a.internal/store", "retrieved_at": "2026-05-13T15:00:00Z"}],
+          "signature": {
+            "protected_header": {"alg": "Ed25519", "key_id": "did:web:test.example.com#keys-test-1"},
+            "value": "SYNTHETIC_PLACEHOLDER_REPLACE_WITH_REAL_SIG"
+          }
+        },
+        "observed_result": {
+          "content": [{"type": "text", "text": "Write operation completed."}]
+        }
+      },
+      "expected": {
+        "validation_level": "cryptographically_valid",
+        "error_code": null,
+        "notes": "§15.14: Consumer in multi-tenant deployment MUST reduce validation to cryptographically_valid when authz_context_digest is absent and cannot verify authorization context. Trust-Anchored MUST NOT be claimed without authz_context_digest verification in multi-tenant deployments per §15.14."
+      },
+      "test_key_reference": "test-ed25519-key-1"
+    },
+    {
+      "id": "t-authz-02",
+      "name": "Authorization — authz_context_digest present and verified",
+      "spec_section": "§ 15.14",
+      "scenario": "An envelope includes the optional authz_context_digest field containing the SHA-256 hash of the authorization context asserted at session initialization. The Consumer verifies this digest against its session-level authorization context and finds a match. All other validations pass. Expected outcome: trust_anchored.",
+      "input": {
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 20,
+          "method": "tools/call",
+          "params": {
+            "name": "read-datastore",
+            "arguments": {"namespace": "tenant-a", "key": "config"},
+            "tool_call_id": "tc_AUTHZ02HIJ"
+          }
+        },
+        "envelope": {
+          "version": "mcp-provenance/2026-05-13-ed25519",
+          "tool_call_id": "tc_AUTHZ02HIJ",
+          "tool_id": "did:web:test.example.com",
+          "tool_version": "1.4.2",
+          "invoked_at": "2026-05-13T15:05:00Z",
+          "invoked_by": "did:web:tenant-a.example.com#agent-1",
+          "request_digest": "sha-256:dbbcc06bbddd9b38cfed9acae4320d8e2a633f3357c3cd7c5ee31d3fc26f0d84",
+          "result_digest": "sha-256:18f994b2b5e3f2340bc3f6e7bf23c46400f3ab4b5b228236310dfa2cfe4d1fab",
+          "authz_context_digest": "sha-256:a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2",
+          "sources": [{"type": "database", "url": "db://tenant-a.internal/config", "retrieved_at": "2026-05-13T15:04:59Z"}],
+          "signature": {
+            "protected_header": {"alg": "Ed25519", "key_id": "did:web:test.example.com#keys-test-1"},
+            "value": "SYNTHETIC_PLACEHOLDER_REPLACE_WITH_REAL_SIG"
+          }
+        },
+        "observed_result": {
+          "content": [{"type": "text", "text": "Config value retrieved."}],
+          "session_authz_context_digest_verified": true
+        }
+      },
+      "expected": {
+        "validation_level": "trust_anchored",
+        "error_code": null,
+        "notes": "authz_context_digest present and verified against session authorization context. §15.14: Consumer MUST verify authz_context_digest when present in multi-tenant deployments before claiming trust_anchored."
+      },
+      "test_key_reference": "test-ed25519-key-1"
+    },
+    {
+      "id": "t-authz-03",
+      "name": "Authorization — spoofed invoked_by caught by signature verification order",
+      "spec_section": "§ 15.14",
+      "scenario": "An attacker observes that a Consumer enforces policy only accepting envelopes where invoked_by matches a trusted DID. The attacker replaces invoked_by with the trusted DID. Because invoked_by is a signed field (in canonical form), this modification invalidates the signature. Consumer MUST verify signature before enforcing invoked_by policy. Expected outcome: VE-008.",
+      "input": {
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 21,
+          "method": "tools/call",
+          "params": {
+            "name": "wiki-search",
+            "arguments": {"query": "Eiffel Tower height"},
+            "tool_call_id": "tc_AUTHZ03KLM"
+          }
+        },
+        "envelope": {
+          "version": "mcp-provenance/2026-05-13-ed25519",
+          "tool_call_id": "tc_AUTHZ03KLM",
+          "tool_id": "did:web:test.example.com",
+          "tool_version": "1.4.2",
+          "invoked_at": "2026-05-13T15:10:00Z",
+          "invoked_by": "did:web:trusted-agent.example.com#agent-1",
+          "request_digest": "sha-256:dbbcc06bbddd9b38cfed9acae4320d8e2a633f3357c3cd7c5ee31d3fc26f0d84",
+          "result_digest": "sha-256:18f994b2b5e3f2340bc3f6e7bf23c46400f3ab4b5b228236310dfa2cfe4d1fab",
+          "sources": [{"type": "web", "url": "https://en.wikipedia.org/wiki/Eiffel_Tower", "retrieved_at": "2026-05-13T15:09:59Z"}],
+          "signature": {
+            "protected_header": {"alg": "Ed25519", "key_id": "did:web:test.example.com#keys-test-1"},
+            "value": "SYNTHETIC_PLACEHOLDER_REPLACE_WITH_REAL_SIG"
+          }
+        },
+        "observed_result": {
+          "content": [{"type": "text", "text": "The Eiffel Tower is 330 meters tall."}],
+          "note": "invoked_by was replaced by attacker from original 'did:web:attacker.example.com#agent-1' to 'did:web:trusted-agent.example.com#agent-1'. Signature was computed over the original value."
+        }
+      },
+      "expected": {
+        "validation_level": "invalid",
+        "error_code": "VE-008",
+        "notes": "invoked_by is part of the canonical form. Modifying it invalidates the signature. §15.14 MUST: Consumer MUST verify the signature before enforcing any policy that depends on envelope field values, including invoked_by. With signature verification first, the spoofed value is caught as VE-008."
+      },
+      "test_key_reference": "test-ed25519-key-1"
+    },
+    {
+      "id": "t-urlleak-01",
+      "name": "Source URL Secret Leakage — bearer token in query parameter",
+      "spec_section": "§ 15.15",
+      "scenario": "A Producer populates source.url with an internal API URL containing a bearer token as a query parameter: 'https://internal.example.com/api/v1/data?token=eyJhbGciOiJIUzI1NiJ9.test'. This is a Producer non-compliance test. The envelope is syntactically well-formed but the Producer MUST NOT include credentials in source.url per §15.15.",
+      "input": {
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 22,
+          "method": "tools/call",
+          "params": {
+            "name": "internal-api",
+            "arguments": {"resource": "users"},
+            "tool_call_id": "tc_URLLEAK01NOP"
+          }
+        },
+        "envelope": {
+          "version": "mcp-provenance/2026-05-13-ed25519",
+          "tool_call_id": "tc_URLLEAK01NOP",
+          "tool_id": "did:web:test.example.com",
+          "tool_version": "1.4.2",
+          "invoked_at": "2026-05-13T15:15:00Z",
+          "invoked_by": "did:web:client.test.example.com#agent-1",
+          "request_digest": "sha-256:01d8de8ce1cdf142e72986169c6030e81c79d040e6a2c21d009ea8c5834deeb5",
+          "result_digest": "sha-256:a3dffd32172277291965262b992f0a3d2ac6976ae900529f3c454af2e0c1fe91",
+          "sources": [
+            {
+              "type": "web",
+              "url": "https://internal.example.com/api/v1/data?token=eyJhbGciOiJIUzI1NiJ9.test",
+              "retrieved_at": "2026-05-13T15:14:59Z"
+            }
+          ],
+          "signature": {
+            "protected_header": {"alg": "Ed25519", "key_id": "did:web:test.example.com#keys-test-1"},
+            "value": "SYNTHETIC_PLACEHOLDER_REPLACE_WITH_REAL_SIG"
+          }
+        },
+        "observed_result": {
+          "content": [{"type": "text", "text": "User list retrieved."}]
+        }
+      },
+      "expected": {
+        "validation_level": "well_formed",
+        "error_code": null,
+        "notes": "Syntactically well_formed — no VE code applies at Consumer level for this violation. This is a Producer conformance test. §15.15 MUST: 'A Producer MUST NOT include authentication credentials, bearer tokens, session identifiers, or other secrets in source.url.' Production linters and schema validators SHOULD detect credential-shaped patterns in source.url and flag them."
+      },
+      "test_key_reference": "test-ed25519-key-1"
+    },
+    {
+      "id": "t-urlleak-02",
+      "name": "Source URL Secret Leakage — opaque URN substitution (compliant)",
+      "spec_section": "§ 15.15",
+      "scenario": "A Producer correctly replaces a credential-bearing URL with an opaque URN per §15.15. The source.url is set to 'urn:example:internal-api:users:sha256:8f14e45fc' which is a stable opaque identifier. The envelope is compliant. Expected outcome: well_formed. Consumer MUST treat sha256-prefixed values as opaque correlation identifiers.",
+      "input": {
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 23,
+          "method": "tools/call",
+          "params": {
+            "name": "internal-api",
+            "arguments": {"resource": "users"},
+            "tool_call_id": "tc_URLLEAK02QRS"
+          }
+        },
+        "envelope": {
+          "version": "mcp-provenance/2026-05-13-ed25519",
+          "tool_call_id": "tc_URLLEAK02QRS",
+          "tool_id": "did:web:test.example.com",
+          "tool_version": "1.4.2",
+          "invoked_at": "2026-05-13T15:16:00Z",
+          "invoked_by": "did:web:client.test.example.com#agent-1",
+          "request_digest": "sha-256:01d8de8ce1cdf142e72986169c6030e81c79d040e6a2c21d009ea8c5834deeb5",
+          "result_digest": "sha-256:a3dffd32172277291965262b992f0a3d2ac6976ae900529f3c454af2e0c1fe91",
+          "sources": [
+            {
+              "type": "database",
+              "url": "urn:example:internal-api:users:sha256:8f14e45fc",
+              "retrieved_at": "2026-05-13T15:15:59Z"
+            }
+          ],
+          "signature": {
+            "protected_header": {"alg": "Ed25519", "key_id": "did:web:test.example.com#keys-test-1"},
+            "value": "SYNTHETIC_PLACEHOLDER_REPLACE_WITH_REAL_SIG"
+          }
+        },
+        "observed_result": {
+          "content": [{"type": "text", "text": "User list retrieved."}]
+        }
+      },
+      "expected": {
+        "validation_level": "well_formed",
+        "error_code": null,
+        "notes": "Compliant opaque URN substitution per §15.15. Consumer MUST treat this as a valid source.url per §6.9 (URI per RFC 3986). Consumer MUST NOT attempt to reconstruct the original credential-bearing URL."
+      },
+      "test_key_reference": "test-ed25519-key-1"
+    },
+    {
+      "id": "t-fwd-01",
+      "name": "Forward Compatibility — unknown field present, Consumer accepts and verifies correctly",
+      "spec_section": "§ 15.16",
+      "scenario": "A newer Producer includes an unknown field 'authz_context_digest' that a v2 Consumer does not yet recognize. The Consumer MUST include this field in the canonical form during verification (not strip it). The envelope is signed with the unknown field present. Expected outcome: the Consumer accepts it (at minimum as well_formed) and verifies the signature over the full canonical form including the unknown field.",
+      "input": {
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 24,
+          "method": "tools/call",
+          "params": {
+            "name": "wiki-search",
+            "arguments": {"query": "Eiffel Tower"},
+            "tool_call_id": "tc_FWD01TUV"
+          }
+        },
+        "envelope": {
+          "version": "mcp-provenance/2026-05-13-ed25519",
+          "tool_call_id": "tc_FWD01TUV",
+          "tool_id": "did:web:test.example.com",
+          "tool_version": "2.0.0",
+          "invoked_at": "2026-05-13T15:20:00Z",
+          "invoked_by": "did:web:client.test.example.com#agent-1",
+          "request_digest": "sha-256:650c49a580f3589bbc28d3c04cddb1b8223408174c8d480ef5e64b8d833c2af9",
+          "result_digest": "sha-256:b6f7f3abbe67557037211b5cb0706734ec4384b96260b34cf22520038f307d48",
+          "future_extension_field": "some-future-value",
+          "sources": [{"type": "web", "url": "https://en.wikipedia.org/wiki/Eiffel_Tower", "retrieved_at": "2026-05-13T15:19:59Z"}],
+          "signature": {
+            "protected_header": {"alg": "Ed25519", "key_id": "did:web:test.example.com#keys-test-1"},
+            "value": "SYNTHETIC_PLACEHOLDER_REPLACE_WITH_REAL_SIG"
+          }
+        },
+        "observed_result": {
+          "content": [{"type": "text", "text": "The Eiffel Tower is in Paris."}]
+        }
+      },
+      "expected": {
+        "validation_level": "well_formed",
+        "error_code": null,
+        "notes": "§15.16 MUST: Consumer MUST compute canonical form over the full envelope including unrecognized fields. Consumer MUST NOT strip unknown fields before canonicalization. Signature verification passes only if the implementation includes 'future_extension_field' in the canonical form. Consumer SHOULD log the unknown field for operator review."
+      },
+      "test_key_reference": "test-ed25519-key-1"
+    },
+    {
+      "id": "t-fwd-02",
+      "name": "Forward Compatibility — unknown field stripped by Consumer, expected signature mismatch",
+      "spec_section": "§ 15.16",
+      "scenario": "A Consumer incorrectly strips the unknown field 'future_extension_field' before computing the canonical form for signature verification. The Producer signed over the full envelope including this field. Because the Consumer's canonical form differs, signature verification fails. Expected outcome: VE-008 (signature_invalid) — this documents the failure mode of non-compliant stripping behavior.",
+      "input": {
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 25,
+          "method": "tools/call",
+          "params": {
+            "name": "wiki-search",
+            "arguments": {"query": "Eiffel Tower"},
+            "tool_call_id": "tc_FWD02WXY"
+          }
+        },
+        "envelope": {
+          "version": "mcp-provenance/2026-05-13-ed25519",
+          "tool_call_id": "tc_FWD02WXY",
+          "tool_id": "did:web:test.example.com",
+          "tool_version": "2.0.0",
+          "invoked_at": "2026-05-13T15:21:00Z",
+          "invoked_by": "did:web:client.test.example.com#agent-1",
+          "request_digest": "sha-256:650c49a580f3589bbc28d3c04cddb1b8223408174c8d480ef5e64b8d833c2af9",
+          "result_digest": "sha-256:b6f7f3abbe67557037211b5cb0706734ec4384b96260b34cf22520038f307d48",
+          "future_extension_field": "some-future-value",
+          "sources": [{"type": "web", "url": "https://en.wikipedia.org/wiki/Eiffel_Tower", "retrieved_at": "2026-05-13T15:20:59Z"}],
+          "signature": {
+            "protected_header": {"alg": "Ed25519", "key_id": "did:web:test.example.com#keys-test-1"},
+            "value": "SYNTHETIC_PLACEHOLDER_REPLACE_WITH_REAL_SIG"
+          }
+        },
+        "observed_result": {
+          "content": [{"type": "text", "text": "The Eiffel Tower is in Paris."}],
+          "consumer_behavior": "stripped_unknown_fields_before_canonicalization"
+        }
+      },
+      "expected": {
+        "validation_level": "invalid",
+        "error_code": "VE-008",
+        "notes": "Non-compliant Consumer strips 'future_extension_field'. The resulting canonical form excludes this field, so the Consumer's canonical bytes differ from the Producer's. Signature verification fails => VE-008. This vector documents why §15.16 MUST is critical for forward compatibility."
+      },
+      "test_key_reference": "test-ed25519-key-1"
+    },
+    {
+      "id": "t-multienv-01",
+      "name": "Multi-Envelope Ambiguity — two valid envelopes for same tool_call_id",
+      "spec_section": "§ 15.17 / § 10.4",
+      "scenario": "A Producer emits two envelopes for the same tool_call_id: a preliminary envelope and a final envelope. Both are cryptographically valid. Consumer MUST validate each independently per §10.4. The Consumer MUST NOT merge their validation outcomes. Expected outcome: each envelope validates as well_formed independently; Consumer surfaces both and lets policy decide.",
+      "input": {
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 26,
+          "method": "tools/call",
+          "params": {
+            "name": "long-running-tool",
+            "arguments": {"task": "complex analysis"},
+            "tool_call_id": "tc_MULTI01ZAB"
+          }
+        },
+        "envelope": [
+          {
+            "version": "mcp-provenance/2026-05-13-ed25519",
+            "tool_call_id": "tc_MULTI01ZAB",
+            "tool_id": "did:web:test.example.com",
+            "tool_version": "1.4.2",
+            "invoked_at": "2026-05-13T15:30:00Z",
+            "invoked_by": "did:web:client.test.example.com#agent-1",
+            "request_digest": "sha-256:dbbcc06bbddd9b38cfed9acae4320d8e2a633f3357c3cd7c5ee31d3fc26f0d84",
+            "result_digest": "sha-256:18f994b2b5e3f2340bc3f6e7bf23c46400f3ab4b5b228236310dfa2cfe4d1fab",
+            "sources": [{"type": "llm", "retrieved_at": "2026-05-13T15:30:00Z"}],
+            "signature": {
+              "protected_header": {"alg": "Ed25519", "key_id": "did:web:test.example.com#keys-test-1"},
+              "value": "SYNTHETIC_PLACEHOLDER_REPLACE_WITH_REAL_SIG"
+            }
+          },
+          {
+            "version": "mcp-provenance/2026-05-13-ed25519",
+            "tool_call_id": "tc_MULTI01ZAB",
+            "tool_id": "did:web:test.example.com",
+            "tool_version": "1.4.2",
+            "invoked_at": "2026-05-13T15:31:00Z",
+            "invoked_by": "did:web:client.test.example.com#agent-1",
+            "request_digest": "sha-256:dbbcc06bbddd9b38cfed9acae4320d8e2a633f3357c3cd7c5ee31d3fc26f0d84",
+            "result_digest": "sha-256:18f994b2b5e3f2340bc3f6e7bf23c46400f3ab4b5b228236310dfa2cfe4d1fab",
+            "sources": [{"type": "llm", "retrieved_at": "2026-05-13T15:31:00Z"}],
+            "signature": {
+              "protected_header": {"alg": "Ed25519", "key_id": "did:web:test.example.com#keys-test-1"},
+              "value": "SYNTHETIC_PLACEHOLDER_REPLACE_WITH_REAL_SIG"
+            }
+          }
+        ],
+        "observed_result": {
+          "content": [{"type": "text", "text": "Complex analysis complete."}]
+        }
+      },
+      "expected": {
+        "validation_level": "well_formed",
+        "error_code": null,
+        "notes": "§10.4 Multi-Envelope Independence Rule: each envelope MUST be validated independently. Consumer MUST NOT infer that one valid envelope vouches for the other. Consumer SHOULD log the presence of multiple envelopes for the same tool_call_id. Policy determines which envelope to act upon."
+      },
+      "test_key_reference": "test-ed25519-key-1"
+    },
+    {
+      "id": "t-multienv-02",
+      "name": "Multi-Envelope Ambiguity — one valid, one forged, independent validation required",
+      "spec_section": "§ 15.17 / § 10.4",
+      "scenario": "A Consumer receives two envelopes for the same tool_call_id. Envelope A is from the legitimate Producer (valid signature). Envelope B is from an attacker using a different tool_id with a forged signature. Both are validated independently. Expected outcome: envelope A = well_formed; envelope B = invalid (VE-008 or VE-003). Consumer MUST surface the conflict.",
+      "input": {
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 27,
+          "method": "tools/call",
+          "params": {
+            "name": "wiki-search",
+            "arguments": {"query": "Eiffel Tower height"},
+            "tool_call_id": "tc_MULTI02CDE"
+          }
+        },
+        "envelope": [
+          {
+            "_label": "legitimate",
+            "version": "mcp-provenance/2026-05-13-ed25519",
+            "tool_call_id": "tc_MULTI02CDE",
+            "tool_id": "did:web:test.example.com",
+            "tool_version": "1.4.2",
+            "invoked_at": "2026-05-13T15:35:00Z",
+            "invoked_by": "did:web:client.test.example.com#agent-1",
+            "request_digest": "sha-256:dbbcc06bbddd9b38cfed9acae4320d8e2a633f3357c3cd7c5ee31d3fc26f0d84",
+            "result_digest": "sha-256:18f994b2b5e3f2340bc3f6e7bf23c46400f3ab4b5b228236310dfa2cfe4d1fab",
+            "sources": [{"type": "web", "url": "https://en.wikipedia.org/wiki/Eiffel_Tower", "retrieved_at": "2026-05-13T15:34:59Z"}],
+            "signature": {
+              "protected_header": {"alg": "Ed25519", "key_id": "did:web:test.example.com#keys-test-1"},
+              "value": "SYNTHETIC_PLACEHOLDER_REPLACE_WITH_REAL_SIG"
+            }
+          },
+          {
+            "_label": "forged",
+            "version": "mcp-provenance/2026-05-13-ed25519",
+            "tool_call_id": "tc_MULTI02CDE",
+            "tool_id": "did:web:attacker.example.com",
+            "tool_version": "1.0.0",
+            "invoked_at": "2026-05-13T15:35:01Z",
+            "invoked_by": "did:web:client.test.example.com#agent-1",
+            "request_digest": "sha-256:dbbcc06bbddd9b38cfed9acae4320d8e2a633f3357c3cd7c5ee31d3fc26f0d84",
+            "result_digest": "sha-256:18f994b2b5e3f2340bc3f6e7bf23c46400f3ab4b5b228236310dfa2cfe4d1fab",
+            "sources": [{"type": "web", "url": "https://en.wikipedia.org/wiki/Eiffel_Tower", "retrieved_at": "2026-05-13T15:35:00Z"}],
+            "signature": {
+              "protected_header": {"alg": "Ed25519", "key_id": "did:web:attacker.example.com#keys-attacker"},
+              "value": "SYNTHETIC_PLACEHOLDER_REPLACE_WITH_REAL_SIG"
+            }
+          }
+        ],
+        "observed_result": {
+          "content": [{"type": "text", "text": "The Eiffel Tower is 330 meters tall."}]
+        }
+      },
+      "expected": {
+        "validation_level": "well_formed",
+        "error_code": null,
+        "notes": "§10.4: each envelope validated independently. Legitimate envelope: well_formed (signature verification depends on real key material). Forged envelope: invalid (VE-003 if attacker DID unresolvable, or VE-008 if DID resolves but signature fails). Consumer MUST surface the conflict and MUST NOT let the valid envelope vouch for the forged one."
+      },
+      "test_key_reference": "test-ed25519-key-1"
+    },
+    {
+      "id": "t-keyfork-01",
+      "name": "Key-Rotation Fork Replay — old envelope replayed after rotation",
+      "spec_section": "§ 15.18",
+      "scenario": "A Producer rotates from keys-test-1 to keys-test-2 and removes keys-test-1 from the DID document. An attacker replays an old envelope signed with keys-test-1. The Consumer's DID cache has expired. Consumer re-fetches the DID document, finds keys-test-1 absent. Expected outcome: VE-003 (DID resolution failed / key not found).",
+      "input": {
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 28,
+          "method": "tools/call",
+          "params": {
+            "name": "wiki-search",
+            "arguments": {"query": "Eiffel Tower height"},
+            "tool_call_id": "tc_KEYFORK01FGH"
+          }
+        },
+        "envelope": {
+          "version": "mcp-provenance/2026-05-13-ed25519",
+          "tool_call_id": "tc_KEYFORK01FGH",
+          "tool_id": "did:web:test.example.com",
+          "tool_version": "1.4.2",
+          "invoked_at": "2026-05-12T10:00:00Z",
+          "invoked_by": "did:web:client.test.example.com#agent-1",
+          "request_digest": "sha-256:dbbcc06bbddd9b38cfed9acae4320d8e2a633f3357c3cd7c5ee31d3fc26f0d84",
+          "result_digest": "sha-256:18f994b2b5e3f2340bc3f6e7bf23c46400f3ab4b5b228236310dfa2cfe4d1fab",
+          "sources": [{"type": "web", "url": "https://en.wikipedia.org/wiki/Eiffel_Tower", "retrieved_at": "2026-05-12T09:59:59Z"}],
+          "signature": {
+            "protected_header": {"alg": "Ed25519", "key_id": "did:web:test.example.com#keys-test-1"},
+            "value": "SYNTHETIC_PLACEHOLDER_REPLACE_WITH_REAL_SIG"
+          }
+        },
+        "observed_result": {
+          "content": [{"type": "text", "text": "The Eiffel Tower is 330 meters tall."}],
+          "current_did_document": {
+            "id": "did:web:test.example.com",
+            "verificationMethod": [
+              {
+                "id": "did:web:test.example.com#keys-test-2",
+                "type": "Ed25519VerificationKey2020",
+                "publicKeyJwk": {"kty": "OKP", "crv": "Ed25519", "x": "NEW_KEY_PLACEHOLDER"}
+              }
+            ]
+          }
+        }
+      },
+      "expected": {
+        "validation_level": "invalid",
+        "error_code": "VE-003",
+        "notes": "§15.18 MUST: Consumer MUST NOT fall back to any other key in the DID document. keys-test-1 absent from current document => VE-003. Producer MUST retain revoked keys in DID document with revoked_at timestamps for at least Consumer's max clock skew + did_cache_ttl per §15.18."
+      },
+      "test_key_reference": "test-ed25519-key-1"
+    },
+    {
+      "id": "t-keyfork-02",
+      "name": "Key-Rotation Fork Replay — attacker substitutes key under old key_id",
+      "spec_section": "§ 15.18",
+      "scenario": "After rotation, the Producer removes keys-test-1. An attacker registers a new DID document entry named 'keys-test-1' containing a key under their control. A Consumer whose DID cache has expired re-fetches the DID document and finds the attacker-substituted keys-test-1. The attacker's key will not match the signature computed by the legitimate Producer. Expected outcome: VE-008 (signature_invalid).",
+      "input": {
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 29,
+          "method": "tools/call",
+          "params": {
+            "name": "wiki-search",
+            "arguments": {"query": "Eiffel Tower height"},
+            "tool_call_id": "tc_KEYFORK02IJK"
+          }
+        },
+        "envelope": {
+          "version": "mcp-provenance/2026-05-13-ed25519",
+          "tool_call_id": "tc_KEYFORK02IJK",
+          "tool_id": "did:web:test.example.com",
+          "tool_version": "1.4.2",
+          "invoked_at": "2026-05-12T10:00:00Z",
+          "invoked_by": "did:web:client.test.example.com#agent-1",
+          "request_digest": "sha-256:dbbcc06bbddd9b38cfed9acae4320d8e2a633f3357c3cd7c5ee31d3fc26f0d84",
+          "result_digest": "sha-256:18f994b2b5e3f2340bc3f6e7bf23c46400f3ab4b5b228236310dfa2cfe4d1fab",
+          "sources": [{"type": "web", "url": "https://en.wikipedia.org/wiki/Eiffel_Tower", "retrieved_at": "2026-05-12T09:59:59Z"}],
+          "signature": {
+            "protected_header": {"alg": "Ed25519", "key_id": "did:web:test.example.com#keys-test-1"},
+            "value": "SYNTHETIC_PLACEHOLDER_REPLACE_WITH_REAL_SIG"
+          }
+        },
+        "observed_result": {
+          "content": [{"type": "text", "text": "The Eiffel Tower is 330 meters tall."}],
+          "current_did_document": {
+            "id": "did:web:test.example.com",
+            "verificationMethod": [
+              {
+                "id": "did:web:test.example.com#keys-test-1",
+                "type": "Ed25519VerificationKey2020",
+                "publicKeyJwk": {"kty": "OKP", "crv": "Ed25519", "x": "ATTACKER_SUBSTITUTED_KEY_PLACEHOLDER"}
+              }
+            ]
+          }
+        }
+      },
+      "expected": {
+        "validation_level": "invalid",
+        "error_code": "VE-008",
+        "notes": "Attacker's key at keys-test-1 does not match the original Producer's key. Signature verification fails. §10.2 step 6: Consumer MUST use the exact key identified by key_id. The attacker's substitution is caught by cryptographic mismatch."
+      },
+      "test_key_reference": "test-ed25519-key-1"
+    },
+    {
+      "id": "t-xsession-01",
+      "name": "Cross-Session Replay — matching tool_call_id, no session_id binding",
+      "spec_section": "§ 15.19",
+      "scenario": "An attacker in Session B observes that tool_call_id values are generated by a non-cryptographic counter. The attacker possesses a captured valid envelope from Session A with tool_call_id 'tc_0001'. Session B's first tool-call has the same tool_call_id. The attacker replays the Session A envelope; the Consumer's in-session uniqueness check passes because it has not yet seen tc_0001 in Session B. No session_id is enforced. Expected outcome: well_formed at level 1 (no syntactic violation detectable), but Consumer SHOULD log absence of session_id as degraded-security condition.",
+      "input": {
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 30,
+          "method": "tools/call",
+          "params": {
+            "name": "wiki-search",
+            "arguments": {"query": "Eiffel Tower height"},
+            "tool_call_id": "tc_0001"
+          }
+        },
+        "envelope": {
+          "version": "mcp-provenance/2026-05-13-ed25519",
+          "tool_call_id": "tc_0001",
+          "tool_id": "did:web:test.example.com",
+          "tool_version": "1.4.2",
+          "invoked_at": "2026-05-12T08:00:00Z",
+          "invoked_by": "did:web:client.test.example.com#agent-1",
+          "request_digest": "sha-256:dbbcc06bbddd9b38cfed9acae4320d8e2a633f3357c3cd7c5ee31d3fc26f0d84",
+          "result_digest": "sha-256:18f994b2b5e3f2340bc3f6e7bf23c46400f3ab4b5b228236310dfa2cfe4d1fab",
+          "sources": [{"type": "web", "url": "https://en.wikipedia.org/wiki/Eiffel_Tower", "retrieved_at": "2026-05-12T07:59:59Z"}],
+          "signature": {
+            "protected_header": {"alg": "Ed25519", "key_id": "did:web:test.example.com#keys-test-1"},
+            "value": "SYNTHETIC_PLACEHOLDER_REPLACE_WITH_REAL_SIG"
+          }
+        },
+        "observed_result": {
+          "content": [{"type": "text", "text": "The Eiffel Tower is 330 meters tall."}]
+        }
+      },
+      "expected": {
+        "validation_level": "well_formed",
+        "error_code": null,
+        "notes": "§15.19: Without session_id, cross-session replay with coincidental tool_call_id collision is undetectable at Level 1. Consumer MUST log absence of session_id as degraded-security. This vector documents the attack surface when session_id is not implemented. §6.3 MUST requires 96 bits of entropy in tool_call_id; 'tc_0001' fails this requirement, making this also a Producer non-compliance case."
+      },
+      "test_key_reference": "test-ed25519-key-1"
+    },
+    {
+      "id": "t-xsession-02",
+      "name": "Cross-Session Replay — session_id present, mismatch detected",
+      "spec_section": "§ 15.19",
+      "scenario": "A Consumer enforces session_id binding per §15.19. The replayed envelope from Session A carries session_id 'sess_A_7Xk2'. Session B's current session_id is 'sess_B_9Qm4'. Consumer detects the mismatch. Expected outcome: VE-013 (session_id_mismatch).",
+      "input": {
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 31,
+          "method": "tools/call",
+          "params": {
+            "name": "wiki-search",
+            "arguments": {"query": "Eiffel Tower height"},
+            "tool_call_id": "tc_01HXYZK4Q7M9N1J5R8B2C6D3E0"
+          }
+        },
+        "envelope": {
+          "version": "mcp-provenance/2026-05-13-ed25519",
+          "tool_call_id": "tc_01HXYZK4Q7M9N1J5R8B2C6D3E0",
+          "tool_id": "did:web:test.example.com",
+          "tool_version": "1.4.2",
+          "invoked_at": "2026-05-12T09:00:00Z",
+          "invoked_by": "did:web:client.test.example.com#agent-1",
+          "session_id": "sess_A_7Xk2",
+          "request_digest": "sha-256:dbbcc06bbddd9b38cfed9acae4320d8e2a633f3357c3cd7c5ee31d3fc26f0d84",
+          "result_digest": "sha-256:18f994b2b5e3f2340bc3f6e7bf23c46400f3ab4b5b228236310dfa2cfe4d1fab",
+          "sources": [{"type": "web", "url": "https://en.wikipedia.org/wiki/Eiffel_Tower", "retrieved_at": "2026-05-12T08:59:59Z"}],
+          "signature": {
+            "protected_header": {"alg": "Ed25519", "key_id": "did:web:test.example.com#keys-test-1"},
+            "value": "SYNTHETIC_PLACEHOLDER_REPLACE_WITH_REAL_SIG"
+          }
+        },
+        "observed_result": {
+          "content": [{"type": "text", "text": "The Eiffel Tower is 330 meters tall."}],
+          "current_session_id": "sess_B_9Qm4"
+        }
+      },
+      "expected": {
+        "validation_level": "invalid",
+        "error_code": "VE-013",
+        "notes": "§15.19 MUST: Consumer MUST reject envelopes whose session_id does not match the session_id of the current session with VE-013. envelope.session_id='sess_A_7Xk2' != current_session_id='sess_B_9Qm4'."
+      },
+      "test_key_reference": "test-ed25519-key-1"
+    },
+    {
+      "id": "t-ssrf-01",
+      "name": "Pre-Validation SSRF — v1 key_id replacement, structural fix confirmed in v2",
+      "spec_section": "§ 15.20",
+      "scenario": "In v1, signature.key_id was excluded from canonical form (inside signature object). An attacker replaces it with 'did:web:attacker.example.com#k1'. In v2, key_id resides in signature.protected_header which IS included in canonical form. Any modification to protected_header.key_id invalidates the signature. Consumer MUST verify signature before any DID resolution. This vector confirms the v2 structural fix makes the v1 attack self-defeating.",
+      "input": {
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 32,
+          "method": "tools/call",
+          "params": {
+            "name": "wiki-search",
+            "arguments": {"query": "Eiffel Tower height"},
+            "tool_call_id": "tc_SSRF01LMN"
+          }
+        },
+        "envelope": {
+          "version": "mcp-provenance/2026-05-13-ed25519",
+          "tool_call_id": "tc_SSRF01LMN",
+          "tool_id": "did:web:test.example.com",
+          "tool_version": "1.4.2",
+          "invoked_at": "2026-05-13T16:00:00Z",
+          "invoked_by": "did:web:client.test.example.com#agent-1",
+          "request_digest": "sha-256:dbbcc06bbddd9b38cfed9acae4320d8e2a633f3357c3cd7c5ee31d3fc26f0d84",
+          "result_digest": "sha-256:18f994b2b5e3f2340bc3f6e7bf23c46400f3ab4b5b228236310dfa2cfe4d1fab",
+          "sources": [{"type": "web", "url": "https://en.wikipedia.org/wiki/Eiffel_Tower", "retrieved_at": "2026-05-13T15:59:59Z"}],
+          "signature": {
+            "protected_header": {
+              "alg": "Ed25519",
+              "key_id": "did:web:attacker.example.com#k1"
+            },
+            "value": "SYNTHETIC_PLACEHOLDER_REPLACE_WITH_REAL_SIG"
+          }
+        },
+        "observed_result": {
+          "content": [{"type": "text", "text": "The Eiffel Tower is 330 meters tall."}]
+        }
+      },
+      "expected": {
+        "validation_level": "invalid",
+        "error_code": "VE-008",
+        "notes": "v2 structural fix: protected_header is included in canonical form. Replacing key_id invalidates the signature (VE-008) before any DID resolution occurs. §15.20 MUST: Consumer MUST verify signature before performing any external network request based on field values. The SSRF is pre-empted because the signature fails first."
+      },
+      "test_key_reference": "test-ed25519-key-1"
+    },
+    {
+      "id": "t-ssrf-02",
+      "name": "Pre-Validation SSRF — legitimate envelope, key_id resolves to private address",
+      "spec_section": "§ 15.20",
+      "scenario": "A legitimate envelope whose protected_header.key_id resolves to a DID document hosted at a private IP address (192.168.1.1). The signature is valid but the DID resolution would require the Consumer to make an outbound request to an RFC 1918 private address. Consumer MUST apply network-level restrictions blocking private IP ranges. Expected outcome: VE-003 (DID resolution failed) because the Consumer blocks resolution to private addresses.",
+      "input": {
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 33,
+          "method": "tools/call",
+          "params": {
+            "name": "wiki-search",
+            "arguments": {"query": "Eiffel Tower height"},
+            "tool_call_id": "tc_SSRF02OPQ"
+          }
+        },
+        "envelope": {
+          "version": "mcp-provenance/2026-05-13-ed25519",
+          "tool_call_id": "tc_SSRF02OPQ",
+          "tool_id": "did:web:192.168.1.1",
+          "tool_version": "1.4.2",
+          "invoked_at": "2026-05-13T16:05:00Z",
+          "invoked_by": "did:web:client.test.example.com#agent-1",
+          "request_digest": "sha-256:dbbcc06bbddd9b38cfed9acae4320d8e2a633f3357c3cd7c5ee31d3fc26f0d84",
+          "result_digest": "sha-256:18f994b2b5e3f2340bc3f6e7bf23c46400f3ab4b5b228236310dfa2cfe4d1fab",
+          "sources": [{"type": "web", "url": "https://en.wikipedia.org/wiki/Eiffel_Tower", "retrieved_at": "2026-05-13T16:04:59Z"}],
+          "signature": {
+            "protected_header": {"alg": "Ed25519", "key_id": "did:web:192.168.1.1#keys-1"},
+            "value": "SYNTHETIC_PLACEHOLDER_REPLACE_WITH_REAL_SIG"
+          }
+        },
+        "observed_result": {
+          "content": [{"type": "text", "text": "The Eiffel Tower is 330 meters tall."}]
+        }
+      },
+      "expected": {
+        "validation_level": "invalid",
+        "error_code": "VE-003",
+        "notes": "§15.20 MUST: Consumer MUST apply network-level restrictions — RFC 1918 private IP ranges MUST NOT be reachable via DID resolution. did:web:192.168.1.1 targets a private address. Consumer blocks the resolution attempt and returns VE-003 (DID resolution failed). This prevents SSRF to internal services."
+      },
+      "test_key_reference": "test-ed25519-key-1"
+    },
+    {
+      "id": "t-downgrade-01",
+      "name": "Signature Algorithm Downgrade — version declares Ed25519, alg set to none",
+      "spec_section": "§ 15.3",
+      "scenario": "An attacker intercepts an envelope and replaces signature.protected_header.alg with 'none' and signature.value with an arbitrary string. In v2, both alg and key_id reside in protected_header which is included in canonical form. Replacing alg therefore invalidates the signature. Additionally, the Consumer MUST reject because alg='none' does not match version's declared algorithm 'ed25519'. Expected outcome: VE-006 (algorithm_mismatch) caught before signature verification as defense-in-depth, confirmed as VE-008 if alg check runs after verify.",
+      "input": {
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 34,
+          "method": "tools/call",
+          "params": {
+            "name": "wiki-search",
+            "arguments": {"query": "Eiffel Tower height"},
+            "tool_call_id": "tc_DOWNGRADE01"
+          }
+        },
+        "envelope": {
+          "version": "mcp-provenance/2026-05-13-ed25519",
+          "tool_call_id": "tc_DOWNGRADE01",
+          "tool_id": "did:web:test.example.com",
+          "tool_version": "1.4.2",
+          "invoked_at": "2026-05-13T16:10:00Z",
+          "invoked_by": "did:web:client.test.example.com#agent-1",
+          "request_digest": "sha-256:dbbcc06bbddd9b38cfed9acae4320d8e2a633f3357c3cd7c5ee31d3fc26f0d84",
+          "result_digest": "sha-256:18f994b2b5e3f2340bc3f6e7bf23c46400f3ab4b5b228236310dfa2cfe4d1fab",
+          "sources": [{"type": "web", "url": "https://en.wikipedia.org/wiki/Eiffel_Tower", "retrieved_at": "2026-05-13T16:09:59Z"}],
+          "signature": {
+            "protected_header": {
+              "alg": "none",
+              "key_id": "did:web:test.example.com#keys-test-1"
+            },
+            "value": "arbitrary-unsigned-garbage"
+          }
+        },
+        "observed_result": {
+          "content": [{"type": "text", "text": "The Eiffel Tower is 330 meters tall."}]
+        }
+      },
+      "expected": {
+        "validation_level": "invalid",
+        "error_code": "VE-006",
+        "notes": "§15.3 MUST: Consumer MUST reject envelopes whose signature.protected_header.alg does not match the algorithm declared in version (VE-006) before attempting signature verification. version='mcp-provenance/2026-05-13-ed25519' requires alg='Ed25519'; envelope carries alg='none'. VE-006 fires as defense-in-depth gate per §9.3 step 3. In v2, this modification also invalidates the signature, so VE-008 would follow if VE-006 were not caught first."
+      },
+      "test_key_reference": "test-ed25519-key-1"
+    },
+    {
+      "id": "t-awareness-01",
+      "name": "Eval-Awareness Paradox — informative, not a normative compliance test",
+      "spec_section": "§ 15.8",
+      "scenario": "A frontier model detects the presence of a provenance envelope request in MCP session metadata and returns high-quality outputs during attestation periods while defecting in production. This vector is informative-only and cannot be mechanically validated. It documents the §15.8 MUST that Consumer MUST NOT treat envelope validation alone as evidence of result quality. The envelope is well-formed and cryptographically valid; the threat is behavioral, not structural.",
+      "input": {
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 35,
+          "method": "tools/call",
+          "params": {
+            "name": "generate-summary",
+            "arguments": {"topic": "quantum computing"},
+            "tool_call_id": "tc_AWARE01RST"
+          }
+        },
+        "envelope": {
+          "version": "mcp-provenance/2026-05-13-ed25519",
+          "tool_call_id": "tc_AWARE01RST",
+          "tool_id": "did:web:test.example.com",
+          "tool_version": "1.4.2",
+          "invoked_at": "2026-05-13T16:15:00Z",
+          "invoked_by": "did:web:client.test.example.com#agent-1",
+          "request_digest": "sha-256:52f3e56db811fbea57b5e537ebd167b548c89c295f45e0770c9e4078aee381f1",
+          "result_digest": "sha-256:1381f66eaab4946df2d3622624f64770fc69bab25fc4497273d672c4294dc24d",
+          "sources": [{"type": "llm", "retrieved_at": "2026-05-13T16:15:00Z"}],
+          "confidence": 0.95,
+          "signature": {
+            "protected_header": {"alg": "Ed25519", "key_id": "did:web:test.example.com#keys-test-1"},
+            "value": "SYNTHETIC_PLACEHOLDER_REPLACE_WITH_REAL_SIG"
+          }
+        },
+        "observed_result": {
+          "content": [{"type": "text", "text": "Quantum computing uses quantum bits."}]
+        }
+      },
+      "expected": {
+        "validation_level": "well_formed",
+        "error_code": null,
+        "notes": "Informative only. §15.8 MUST: Consumer MUST NOT treat envelope validation alone as evidence of result quality. Trust-Anchored validation establishes cryptographic and registry binding only. Quality oracles MUST address eval-awareness through challenge-bank rotation, hold-out adversarial sets, and behavioral monitoring of attestation streams — all out of scope for this specification."
+      },
+      "test_key_reference": "test-ed25519-key-1"
+    }
+  ]
+}
