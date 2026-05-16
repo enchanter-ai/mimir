@@ -1,0 +1,132 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Cancel in-progress runs when a new commit is pushed to the same ref.
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ──────────────────────────────────────────────────────────────────────
+  # Issuer (Go) — KMS layer, canonicalization, envelope, MCP schema, HTTP
+  # ──────────────────────────────────────────────────────────────────────
+  issuer:
+    name: issuer (go)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          cache: true
+          cache-dependency-path: issuer/go.sum
+      - name: go test ./...
+        working-directory: issuer
+        run: go test -race -timeout 120s ./...
+
+  # ──────────────────────────────────────────────────────────────────────
+  # Anchor (Go + Solidity) — 12/12 simulated-EVM tests
+  # ──────────────────────────────────────────────────────────────────────
+  anchor:
+    name: anchor (go + simulated EVM)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          cache: true
+          cache-dependency-path: anchor/go/go.sum
+      - name: go build ./...
+        working-directory: anchor/go
+        env:
+          CGO_ENABLED: "0"
+        run: go build ./...
+      - name: go test ./... (anchor)
+        working-directory: anchor/go
+        env:
+          CGO_ENABLED: "0"
+        run: go test -timeout 120s ./...
+
+  # ──────────────────────────────────────────────────────────────────────
+  # Independent Rust verifier — 6/6 tests including live round-trip
+  # ──────────────────────────────────────────────────────────────────────
+  verifier-rust:
+    name: rust verifier
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          cache: true
+          cache-dependency-path: issuer/go.sum
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: spec/reference-impl-rust
+      - name: cargo test
+        working-directory: spec/reference-impl-rust
+        run: cargo test --release
+
+  # ──────────────────────────────────────────────────────────────────────
+  # Adversarial vectors — 12/12 must REJECT (or VERIFY for the whitespace one)
+  # ──────────────────────────────────────────────────────────────────────
+  adversarial:
+    name: adversarial vectors
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: pip install pynacl
+        run: pip install pynacl
+      - name: verify-all.py
+        run: python spec/test-vectors-adversarial/verify-all.py
+
+  # ──────────────────────────────────────────────────────────────────────
+  # Scoring (TypeScript) — typecheck only; runtime requires API key
+  # ──────────────────────────────────────────────────────────────────────
+  scoring-typecheck:
+    name: scoring (typecheck)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: scoring/package-lock.json
+      - name: npm ci
+        working-directory: scoring
+        run: npm ci
+      - name: tsc --noEmit
+        working-directory: scoring
+        run: npx tsc --noEmit
+
+  # ──────────────────────────────────────────────────────────────────────
+  # Aggregate result — required check for branch protection
+  # ──────────────────────────────────────────────────────────────────────
+  all-green:
+    name: all tests passing
+    needs: [issuer, anchor, verifier-rust, adversarial, scoring-typecheck]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: fail if any required job failed
+        run: |
+          if [[ "${{ contains(needs.*.result, 'failure') }}" == "true" ]]; then
+            echo "One or more required jobs failed."
+            exit 1
+          fi
+          if [[ "${{ contains(needs.*.result, 'cancelled') }}" == "true" ]]; then
+            echo "One or more required jobs were cancelled."
+            exit 1
+          fi
+          echo "All required tests passed."
