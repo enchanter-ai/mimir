@@ -1,0 +1,30 @@
+{
+  "request": {
+    "jsonrpc": "2.0",
+    "id": "req-fetch-001",
+    "method": "tools/call",
+    "params": {
+      "name": "fetch_document",
+      "arguments": {
+        "url": "https://example.com/api/v1/document/42",
+        "format": "text",
+        "max_bytes": 8192
+      }
+    }
+  },
+  "result": {
+    "jsonrpc": "2.0",
+    "id": "req-fetch-001",
+    "result": {
+      "content": [
+        {
+          "type": "text",
+          "text": "Title: Example Document\n\nThis is the body of the fetched document."
+        }
+      ],
+      "isError": false
+    }
+  },
+  "tool_id": "did:web:example.com:tools:fetch-document",
+  "tool_version": "1.0.0"
+}
