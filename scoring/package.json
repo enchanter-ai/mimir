@@ -15,7 +15,7 @@
     "demo": "tsx scripts/demo.ts"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.52.0",
+    "@anthropic-ai/sdk": "^0.96.0",
     "fastify": "^5.3.2",
     "pino": "^9.6.0",
     "zod": "^3.24.2"
