@@ -1,0 +1,21 @@
+{
+  "request": {
+    "name": "fetch_document",
+    "arguments": {
+      "url": "https://example.com/api/v1/document/42",
+      "format": "text",
+      "max_bytes": 8192
+    }
+  },
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "Title: Example Document\n\nThis is the body of the fetched document. It contains factual information retrieved by the MCP tool at the time of invocation."
+      }
+    ],
+    "isError": false
+  },
+  "tool_id": "did:web:example.com:tools:fetch-document",
+  "tool_version": "1.0.0"
+}
