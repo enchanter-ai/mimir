@@ -1,0 +1,65 @@
+# Mimir local dev stack — both services on one network.
+#
+#   docker compose up                              # MOCK_MODE, no API key
+#   ANTHROPIC_API_KEY=... docker compose up        # real Claude scoring
+#
+# Endpoints:
+#   issuer    http://localhost:8080
+#   scoring   http://localhost:9090
+#
+# Volumes are intentionally empty — the issuer and scoring services are
+# stateless. JWK rotation history (if used) should be mounted explicitly:
+#
+#   docker compose run --rm -v $PWD/historical-keys.json:/app/historical-keys.json issuer
+
+services:
+
+  issuer:
+    build:
+      context: ./issuer
+      dockerfile: Dockerfile
+    image: mimir-issuer:dev
+    ports:
+      - "8080:8080"
+    environment:
+      KMS_MODE: ${KMS_MODE:-ephemeral}
+      KMS_KEY_ARN: ${KMS_KEY_ARN:-}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      ISSUER_RATELIMIT_RPS: ${ISSUER_RATELIMIT_RPS:-10}
+      ISSUER_RATELIMIT_BURST: ${ISSUER_RATELIMIT_BURST:-20}
+      ISSUER_LOG_LEVEL: ${ISSUER_LOG_LEVEL:-info}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/v1/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    networks:
+      - mimir-net
+
+  scoring:
+    build:
+      context: ./scoring
+      dockerfile: Dockerfile
+    image: mimir-scoring:dev
+    ports:
+      - "9090:9090"
+    environment:
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      MOCK_MODE: ${MOCK_MODE:-1}  # default to mock for safe `docker compose up`
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9090/v1/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    networks:
+      - mimir-net
+
+networks:
+  mimir-net:
+    driver: bridge
