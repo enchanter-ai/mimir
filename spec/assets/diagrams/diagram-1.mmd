@@ -1,0 +1,14 @@
+sequenceDiagram
+    participant LLM
+    participant Client
+    participant Server
+    participant Tool
+    LLM->>Client: requests tool call
+    Client->>Server: tools/call
+    Server->>Tool: execute
+    Tool-->>Server: raw result
+    Server->>Server: apply transformations
+    Server->>Server: construct + sign envelope
+    Server-->>Client: tools/call response { result, provenance }
+    Client->>Client: validate envelope (§ 10 levels 1, 2, 3)
+    Client-->>LLM: result with validation outcome

@@ -1,0 +1,100 @@
+<svg viewBox="0 0 620 560" xmlns="http://www.w3.org/2000/svg"
+     font-family="system-ui, -apple-system, 'Segoe UI', sans-serif">
+  <!-- Verifier Flow — § 8 — Enchanter Labs house style -->
+  <rect width="620" height="560" fill="white"/>
+
+  <defs>
+    <marker id="vf-arrow-accent" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+      <polygon points="0 0, 10 4, 0 8" fill="#1d3a8e"/>
+    </marker>
+    <marker id="vf-arrow-return" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+      <polygon points="0 0, 10 4, 0 8" fill="#888"/>
+    </marker>
+  </defs>
+
+  <!-- ── Actor header boxes ─────────────────────────────────────────── -->
+  <!-- Consumer -->
+  <rect x="80" y="20" width="120" height="36" rx="2" fill="#1d3a8e" stroke="#1d3a8e" stroke-width="1.5"/>
+  <text x="140" y="43" font-size="12" text-anchor="middle" font-weight="600" fill="white">Consumer</text>
+
+  <!-- Registry -->
+  <rect x="380" y="20" width="120" height="36" rx="2" fill="#f7f7f5" stroke="#555" stroke-width="1.5"/>
+  <text x="440" y="43" font-size="12" text-anchor="middle" font-weight="600" fill="#1a1a1a">Registry</text>
+
+  <!-- ── Lifelines ───────────────────────────────────────────────────── -->
+  <line x1="140" y1="56" x2="140" y2="520" stroke="#d6d4cc" stroke-width="1" stroke-dasharray="4,4"/>
+  <line x1="440" y1="56" x2="440" y2="520" stroke="#d6d4cc" stroke-width="1" stroke-dasharray="4,4"/>
+
+  <!-- ── Validation Level 1: Syntax ────────────────────────────────── -->
+  <!-- Checkpoint marker -->
+  <circle cx="140" cy="95" r="11" fill="#1d3a8e"/>
+  <text x="140" y="99" font-size="9" text-anchor="middle" fill="white" font-weight="700">1</text>
+  <!-- Step box -->
+  <rect x="88" y="82" width="104" height="26" rx="2" fill="none" stroke="#1d3a8e" stroke-width="1"/>
+  <text x="140" y="99" font-size="10" text-anchor="middle" fill="#1d3a8e" dy="0"></text>
+  <!-- Label right of lifeline -->
+  <rect x="88" y="82" width="104" height="26" rx="2" fill="#eef1fa" stroke="#1d3a8e" stroke-width="1"/>
+  <text x="140" y="97" font-size="10" text-anchor="middle" fill="#1d3a8e">§ 10.1 well-formed</text>
+  <!-- Side annotation -->
+  <text x="220" y="92" font-size="10" fill="#888">parse + field check</text>
+
+  <!-- Level 1 label -->
+  <text x="28" y="99" font-size="9" fill="#1d3a8e" font-weight="600" text-anchor="middle">L1</text>
+  <line x1="36" y1="95" x2="80" y2="95" stroke="#1d3a8e" stroke-width="0.75"/>
+
+  <!-- ── Validation Level 2: Signature ──────────────────────────────── -->
+  <rect x="74" y="130" width="132" height="26" rx="2" fill="#eef1fa" stroke="#1d3a8e" stroke-width="1"/>
+  <text x="140" y="147" font-size="10" text-anchor="middle" fill="#1d3a8e">§ 10.2 verify signature</text>
+  <text x="220" y="140" font-size="10" fill="#888">Ed25519 / ECDSA</text>
+
+  <text x="28" y="147" font-size="9" fill="#1d3a8e" font-weight="600" text-anchor="middle">L2</text>
+  <line x1="36" y1="143" x2="74" y2="143" stroke="#1d3a8e" stroke-width="0.75"/>
+
+  <!-- ── Registry lookup ─────────────────────────────────────────────── -->
+  <!-- Consumer → Registry: lookup tool_id -->
+  <line x1="140" y1="190" x2="438" y2="190" stroke="#1d3a8e" stroke-width="1.5" marker-end="url(#vf-arrow-accent)"/>
+  <text x="290" y="182" font-size="11" text-anchor="middle" fill="#1d3a8e">registry/lookup</text>
+  <text x="290" y="197" font-size="9.5" text-anchor="middle" fill="#aaa">(tool_id, key_id)</text>
+
+  <!-- Registry → Consumer: trust anchor record (dashed return) -->
+  <line x1="440" y1="235" x2="142" y2="235" stroke="#888" stroke-width="1.5" stroke-dasharray="5,4" marker-end="url(#vf-arrow-return)"/>
+  <text x="290" y="227" font-size="11" text-anchor="middle" fill="#888">trust_anchor_record</text>
+
+  <!-- ── Validation Level 3: Trust anchor ──────────────────────────── -->
+  <rect x="68" y="258" width="144" height="26" rx="2" fill="#eef1fa" stroke="#1d3a8e" stroke-width="1"/>
+  <text x="140" y="275" font-size="10" text-anchor="middle" fill="#1d3a8e">§ 10.3 trust-anchored</text>
+  <text x="220" y="267" font-size="10" fill="#888">anchor match + revocation</text>
+
+  <text x="28" y="275" font-size="9" fill="#1d3a8e" font-weight="600" text-anchor="middle">L3</text>
+  <line x1="36" y1="271" x2="68" y2="271" stroke="#1d3a8e" stroke-width="0.75"/>
+
+  <!-- ── Outcome box ─────────────────────────────────────────────────── -->
+  <rect x="74" y="310" width="132" height="26" rx="2" fill="#f7f7f5" stroke="#555" stroke-width="1"/>
+  <text x="140" y="327" font-size="10" text-anchor="middle" fill="#333">validation outcome</text>
+
+  <!-- ── Checkpoint legend ───────────────────────────────────────────── -->
+  <line x1="60" y1="370" x2="560" y2="370" stroke="#d6d4cc" stroke-width="0.75"/>
+
+  <text x="60" y="392" font-size="10" fill="#1a1a1a" font-weight="600">Three progressive validation levels</text>
+
+  <!-- Level 1 row -->
+  <circle cx="76" cy="415" r="9" fill="#1d3a8e"/>
+  <text x="76" y="419" font-size="8" text-anchor="middle" fill="white" font-weight="700">1</text>
+  <text x="92" y="419" font-size="10" fill="#333">Syntax — parse envelope; check required fields (§ 10.1)</text>
+
+  <!-- Level 2 row -->
+  <circle cx="76" cy="440" r="9" fill="#1d3a8e"/>
+  <text x="76" y="444" font-size="8" text-anchor="middle" fill="white" font-weight="700">2</text>
+  <text x="92" y="444" font-size="10" fill="#333">Cryptographic — verify signature over canonical form (§ 10.2)</text>
+
+  <!-- Level 3 row -->
+  <circle cx="76" cy="465" r="9" fill="#1d3a8e"/>
+  <text x="76" y="469" font-size="8" text-anchor="middle" fill="white" font-weight="700">3</text>
+  <text x="92" y="469" font-size="10" fill="#333">Trust-anchored — registry lookup, anchor match (§ 10.3)</text>
+
+  <text x="92" y="492" font-size="9" fill="#aaa" font-style="italic">Consumer MAY stop at any level that satisfies its policy.</text>
+
+  <!-- ── Caption ───────────────────────────────────────────────────── -->
+  <line x1="60" y1="512" x2="560" y2="512" stroke="#d6d4cc" stroke-width="0.75"/>
+  <text x="310" y="530" font-size="9" text-anchor="middle" fill="#aaa" letter-spacing="0.06em">Figure 2 — Verifier Flow (§ 8)</text>
+</svg>
