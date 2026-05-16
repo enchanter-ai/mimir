@@ -14,6 +14,7 @@ import (
 	"github.com/enchanter-ai/mimir/issuer/canonicalize"
 	"github.com/enchanter-ai/mimir/issuer/keystore"
 	"github.com/enchanter-ai/mimir/issuer/kms"
+	"github.com/enchanter-ai/mimir/issuer/telemetry"
 	"github.com/enchanter-ai/mimir/issuer/types"
 	"github.com/gorilla/mux"
 )
@@ -53,7 +54,7 @@ func TestServerEndToEndWithAWSFake(t *testing.T) {
 	if err != nil {
 		t.Fatalf("keystore.New: %v", err)
 	}
-	srv := &server{signer: signer, keystore: ks}
+	srv := &server{signer: signer, keystore: ks, tracer: telemetry.NoOpTracer{}}
 	r := mux.NewRouter()
 	r.HandleFunc("/v1/attest", srv.handleAttest).Methods(http.MethodPost)
 	r.HandleFunc("/v1/key", srv.handleKey).Methods(http.MethodGet)
