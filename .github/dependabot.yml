@@ -1,0 +1,99 @@
+# Dependabot config for the Mimir polyglot repo.
+# Each ecosystem is configured separately because Mimir has Go (×3), npm (×2),
+# Cargo (×1), and GitHub Actions all in one repo.
+
+version: 2
+updates:
+  # Issuer (main signing service) — security-critical
+  - package-ecosystem: gomod
+    directory: /issuer
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels: [dependencies, go, issuer]
+    commit-message:
+      prefix: "chore(deps)"
+      include: scope
+    groups:
+      aws-sdk:
+        patterns:
+          - "github.com/aws/aws-sdk-go-v2*"
+      go-ethereum-stack:
+        patterns:
+          - "github.com/ethereum/go-ethereum*"
+
+  # Anchor (on-chain client + EigenLayer wiring)
+  - package-ecosystem: gomod
+    directory: /anchor/go
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels: [dependencies, go, anchor]
+    commit-message:
+      prefix: "chore(deps)"
+      include: scope
+    groups:
+      go-ethereum-stack:
+        patterns:
+          - "github.com/ethereum/go-ethereum*"
+
+  # Throughput benchmark
+  - package-ecosystem: gomod
+    directory: /bench
+    schedule:
+      interval: monthly
+    labels: [dependencies, go, bench]
+    commit-message:
+      prefix: "chore(deps)"
+      include: scope
+
+  # Scoring service (Anthropic SDK + Fastify)
+  - package-ecosystem: npm
+    directory: /scoring
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels: [dependencies, javascript, scoring]
+    commit-message:
+      prefix: "chore(deps)"
+      include: scope
+
+  # Anchor compile pipeline (solc-js only; small surface)
+  - package-ecosystem: npm
+    directory: /anchor
+    schedule:
+      interval: monthly
+    labels: [dependencies, javascript, anchor]
+    commit-message:
+      prefix: "chore(deps)"
+      include: scope
+
+  # Independent Rust verifier
+  - package-ecosystem: cargo
+    directory: /spec/reference-impl-rust
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels: [dependencies, rust, verifier]
+    commit-message:
+      prefix: "chore(deps)"
+      include: scope
+    groups:
+      ed25519-dalek-stack:
+        patterns:
+          - "ed25519*"
+          - "curve25519*"
+
+  # GitHub Actions workflows
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    labels: [dependencies, github-actions]
+    commit-message:
+      prefix: "chore(ci)"
+      include: scope
