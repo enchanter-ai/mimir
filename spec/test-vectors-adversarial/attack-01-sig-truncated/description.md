@@ -1,0 +1,3 @@
+## Attack 01 — Signature truncated (last 4 bytes dropped)
+
+The `signature.value` field has been shortened by removing the last 4 bytes of the 64-byte Ed25519 signature before re-encoding to base64url. The resulting value is 60 bytes, not the required 64. A correct verifier **MUST** reject this because the decoded signature does not match the expected 64-byte Ed25519 length, and cryptographic verification will fail (`VE-008`). Spec §11 (Profile Identifiers) mandates the Ed25519 profile produces a 64-byte signature; §9.3 step 10 requires cryptographic verification to succeed; §10.2 step 11 maps verification failure to `VE-008`.

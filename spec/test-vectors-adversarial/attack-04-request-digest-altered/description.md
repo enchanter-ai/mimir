@@ -1,0 +1,3 @@
+## Attack 04 — `request_digest` altered after signing
+
+One hex character in `request_digest` has been changed after the envelope was signed. The signature was computed over the original (correct) digest; the altered digest causes the canonical form to differ from what was signed. A correct verifier **MUST** reject this on two independent grounds: (1) cryptographic signature verification fails because the canonical bytes differ (`VE-008`), and (2) the request digest does not match the Consumer's independently computed digest (`VE-009`). Spec §9.2 includes `request_digest` in the signed canonical form; §10.2 step 12 cross-checks it against the originating request; §15.11 (Unbound Result Substitution) describes the threat this field defends against.
