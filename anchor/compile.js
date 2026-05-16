@@ -41,7 +41,15 @@ const input = {
   settings: {
     optimizer: { enabled: true, runs: 200 },
     outputSelection: {
-      "*": { "*": ["abi", "evm.bytecode.object"] },
+      "*": {
+        "*": [
+          "abi",
+          "evm.bytecode.object",                       // creation bytecode (includes constructor)
+          "evm.deployedBytecode.object",               // runtime bytecode (what lives on-chain)
+          "evm.deployedBytecode.immutableReferences",  // byte positions of immutables (slashWad, etc.)
+          "metadata",                                  // CBOR-encoded compiler metadata
+        ],
+      },
     },
   },
 };
@@ -80,8 +88,33 @@ for (const name of deployable) {
     process.exit(1);
   }
   const abi = found.abi;
-  const bytecode = "0x" + found.evm.bytecode.object;
+  const creationHex = "0x" + found.evm.bytecode.object;
+  const runtimeHex = "0x" + found.evm.deployedBytecode.object;
+  const metadata = found.metadata || "";
+
   fs.writeFileSync(path.join(abiDir, `${name}.json`), JSON.stringify(abi, null, 2));
-  fs.writeFileSync(path.join(abiDir, `${name}.bin`), bytecode);
-  console.log(`${name.padEnd(28)}  abi+bin written  (${(bytecode.length - 2) / 2} bytes bytecode)`);
+  fs.writeFileSync(path.join(abiDir, `${name}.bin`), creationHex);
+  fs.writeFileSync(path.join(abiDir, `${name}.runtime.bin`), runtimeHex);
+  if (metadata) {
+    fs.writeFileSync(path.join(abiDir, `${name}.metadata.json`), metadata);
+  }
+
+  // Emit immutable byte ranges so verify-build.sh can mask them when diffing
+  // local recompile against on-chain bytecode (Solidity inlines constructor
+  // immutable args into runtime bytecode at deploy time; local compile has
+  // zeros in those slots).
+  const immutables = (found.evm.deployedBytecode.immutableReferences) || {};
+  fs.writeFileSync(
+    path.join(abiDir, `${name}.immutables.json`),
+    JSON.stringify(immutables, null, 2)
+  );
+
+  const creationBytes = (creationHex.length - 2) / 2;
+  const runtimeBytes  = (runtimeHex.length - 2) / 2;
+  const immutableCount = Object.keys(immutables).length;
+  console.log(
+    `${name.padEnd(28)}  abi+bin+runtime+metadata+immutables  ` +
+    `(creation: ${creationBytes} bytes, runtime: ${runtimeBytes} bytes, immutables: ${immutableCount})`
+  );
 }
+
