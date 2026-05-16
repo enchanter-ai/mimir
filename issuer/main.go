@@ -16,16 +16,22 @@ import (
 	"net/http"
 	"os"
 
+	"time"
+
+	"github.com/enchanter-ai/mimir/issuer/clientid"
 	"github.com/enchanter-ai/mimir/issuer/envelope"
+	"github.com/enchanter-ai/mimir/issuer/keystore"
 	"github.com/enchanter-ai/mimir/issuer/kms"
+	"github.com/enchanter-ai/mimir/issuer/ratelimit"
 	"github.com/enchanter-ai/mimir/issuer/schema"
 	"github.com/enchanter-ai/mimir/issuer/types"
 	"github.com/gorilla/mux"
 )
 
-// server holds the active Signer (key custody backend).
+// server holds the active Signer (key custody backend) + the JWK Set keystore.
 type server struct {
-	signer kms.Signer
+	signer   kms.Signer
+	keystore *keystore.Store
 }
 
 func main() {
@@ -34,10 +40,17 @@ func main() {
 		log.Fatalf("FATAL: signer init: %v", err)
 	}
 
-	srv := &server{signer: signer}
+	ks, err := keystore.New(signer.KeyID(), signer.PublicKey())
+	if err != nil {
+		log.Fatalf("FATAL: keystore init: %v", err)
+	}
+	srv := &server{signer: signer, keystore: ks}
 
 	log.Printf("INFO: issuer started — key_id=%s", signer.KeyID())
 	log.Printf("INFO: public key (base64url): %s", base64.RawURLEncoding.EncodeToString(signer.PublicKey()))
+	if n := ks.HistoricalCount(); n > 0 {
+		log.Printf("INFO: keystore loaded %d historical key(s) from ISSUER_HISTORICAL_KEYS_FILE", n)
+	}
 
 	addr := listenAddr()
 	log.Printf("INFO: listening on %s", addr)
@@ -47,8 +60,20 @@ func main() {
 	r.HandleFunc("/v1/attest-mcp", srv.handleAttestMCP).Methods(http.MethodPost)
 	r.HandleFunc("/v1/healthz", handleHealthz).Methods(http.MethodGet)
 	r.HandleFunc("/v1/key", srv.handleKey).Methods(http.MethodGet)
+	r.HandleFunc("/v1/keys", srv.handleKeys).Methods(http.MethodGet)
+	r.HandleFunc("/.well-known/jwks.json", srv.handleKeys).Methods(http.MethodGet)
 
-	if err := http.ListenAndServe(addr, r); err != nil {
+	// Per-IP token-bucket rate limit (configurable via ISSUER_RATELIMIT_RPS / _BURST).
+	// Healthz is exempt so liveness probes never get throttled.
+	limiter := ratelimit.New()
+	if limiter != nil {
+		log.Printf("INFO: rate limit enabled (defaults: %d rps, burst %d per IP)", 10, 20)
+	} else {
+		log.Printf("WARN: rate limit DISABLED (ISSUER_RATELIMIT_RPS=0) — not recommended in production")
+	}
+	handler := limiter.Middleware(map[string]bool{"/v1/healthz": true})(r)
+
+	if err := http.ListenAndServe(addr, handler); err != nil {
 		log.Fatalf("FATAL: server error: %v", err)
 	}
 }
@@ -113,12 +138,16 @@ func (s *server) handleAttest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	env, err := envelope.BuildEnvelopeCtx(
+	invokedBy, validationLevel, err := s.resolveClientIdentity(r, req.ClientIdentityProof)
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "client_identity_proof rejected: "+err.Error())
+		return
+	}
+
+	env, err := envelope.BuildEnvelopeWithIdentityCtx(
 		r.Context(),
-		req.Request,
-		req.Result,
-		req.ToolID,
-		req.ToolVersion,
+		req.Request, req.Result,
+		req.ToolID, req.ToolVersion, invokedBy,
 		s.signer,
 	)
 	if err != nil {
@@ -126,10 +155,7 @@ func (s *server) handleAttest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp := types.AttestResponse{
-		Envelope:        env,
-		ValidationLevel: "cryptographically_valid",
-	}
+	resp := types.AttestResponse{Envelope: env, ValidationLevel: validationLevel}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
@@ -147,10 +173,11 @@ func (s *server) handleAttestMCP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var outer struct {
-		Request     json.RawMessage `json:"request"`
-		Result      json.RawMessage `json:"result"`
-		ToolID      string          `json:"tool_id"`
-		ToolVersion string          `json:"tool_version"`
+		Request             json.RawMessage `json:"request"`
+		Result              json.RawMessage `json:"result"`
+		ToolID              string          `json:"tool_id"`
+		ToolVersion         string          `json:"tool_version"`
+		ClientIdentityProof string          `json:"client_identity_proof,omitempty"`
 	}
 	if err := json.Unmarshal(body, &outer); err != nil {
 		httpError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
@@ -182,10 +209,16 @@ func (s *server) handleAttestMCP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	env, err := envelope.BuildEnvelopeCtx(
+	invokedBy, validationLevel, err := s.resolveClientIdentity(r, outer.ClientIdentityProof)
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "client_identity_proof rejected: "+err.Error())
+		return
+	}
+
+	env, err := envelope.BuildEnvelopeWithIdentityCtx(
 		r.Context(),
 		internal.Request, internal.Result,
-		internal.ToolID, internal.ToolVersion,
+		internal.ToolID, internal.ToolVersion, invokedBy,
 		s.signer,
 	)
 	if err != nil {
@@ -193,15 +226,62 @@ func (s *server) handleAttestMCP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp := types.AttestResponse{
-		Envelope:        env,
-		ValidationLevel: "cryptographically_valid",
-	}
+	resp := types.AttestResponse{Envelope: env, ValidationLevel: validationLevel}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
 		log.Printf("ERROR: attest-mcp response encode: %v", err)
 	}
+}
+
+// resolveClientIdentity checks for a DPoP proof in (a) the DPoP HTTP header
+// or (b) the request body's client_identity_proof field. If present and
+// valid, returns ("did:jwk:<thumbprint>", "trust_anchored", nil). If absent,
+// returns ("", "cryptographically_valid", nil) — the envelope still signs,
+// just at validation level 2 instead of 3. If present but malformed/invalid,
+// returns ("", "", err) so the handler can fail closed.
+func (s *server) resolveClientIdentity(r *http.Request, bodyProof string) (string, string, error) {
+	proof := r.Header.Get("DPoP")
+	if proof == "" {
+		proof = bodyProof
+	}
+	if proof == "" {
+		return "", "cryptographically_valid", nil
+	}
+	uri := reconstructPublicURL(r)
+	res, err := clientid.Verify(clientid.VerifyParams{
+		Proof:        proof,
+		HTTPMethod:   r.Method,
+		HTTPURI:      uri,
+		MaxClockSkew: 60 * time.Second,
+		Now:          time.Now(),
+	})
+	if err != nil {
+		return "", "", err
+	}
+	return res.DID, "trust_anchored", nil
+}
+
+// reconstructPublicURL builds the URL the client should have committed to in
+// the DPoP `htu` claim. Honors X-Forwarded-Proto / X-Forwarded-Host for the
+// reverse-proxy deployment.
+func reconstructPublicURL(r *http.Request) string {
+	scheme := "http"
+	if r.TLS != nil {
+		scheme = "https"
+	}
+	if proto := r.Header.Get("X-Forwarded-Proto"); proto != "" {
+		scheme = proto
+	}
+	host := r.Host
+	if h := r.Header.Get("X-Forwarded-Host"); h != "" {
+		host = h
+	}
+	path := r.URL.Path
+	if r.URL.RawQuery != "" {
+		return scheme + "://" + host + path + "?" + r.URL.RawQuery
+	}
+	return scheme + "://" + host + path
 }
 
 // handleHealthz handles GET /v1/healthz.
@@ -211,21 +291,35 @@ func handleHealthz(w http.ResponseWriter, _ *http.Request) {
 	_, _ = w.Write([]byte(`{"status":"ok"}`))
 }
 
-// handleKey handles GET /v1/key — returns the active public key as a JWK.
+// handleKey handles GET /v1/key — returns ONLY the active public key.
+// Retained for back-compat with the v0 verifier that fetches a single JWK.
+// New consumers should call /v1/keys to receive the full set, so they can
+// verify envelopes signed under retired (pre-rotation) keys.
 func (s *server) handleKey(w http.ResponseWriter, _ *http.Request) {
-	jwk := types.JWKPublicKey{
-		Kty: "OKP",
-		Crv: "Ed25519",
-		X:   base64.RawURLEncoding.EncodeToString(s.signer.PublicKey()),
-		Kid: s.signer.KeyID(),
-		Use: "sig",
-	}
+	jwk := s.keystore.Active()
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(jwk); err != nil {
 		log.Printf("ERROR: key response encode: %v", err)
 	}
 }
+
+// handleKeys handles GET /v1/keys (also served at /.well-known/jwks.json):
+// returns the JWK Set — active + historical keys — for verifying envelopes
+// signed under any non-revoked key the issuer has ever published.
+func (s *server) handleKeys(w http.ResponseWriter, _ *http.Request) {
+	set := s.keystore.JWKSet()
+	w.Header().Set("Content-Type", "application/jwk-set+json")
+	w.Header().Set("Cache-Control", "public, max-age=300")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(set); err != nil {
+		log.Printf("ERROR: jwks response encode: %v", err)
+	}
+}
+
+// Keep type-name reachable so the import isn't pruned if the only other
+// reference is removed by a future refactor.
+var _ = types.JWKPublicKey{}
 
 // httpError writes a JSON error body with the given status code.
 func httpError(w http.ResponseWriter, code int, msg string) {
