@@ -35,7 +35,7 @@ func BuildEnvelope(
 	toolID, toolVersion string,
 	signer kms.Signer,
 ) (*types.Envelope, error) {
-	return buildEnvelopeCtx(context.Background(), request, result, toolID, toolVersion, signer)
+	return buildEnvelopeCtx(context.Background(), request, result, toolID, toolVersion, "", signer)
 }
 
 // BuildEnvelopeCtx is like BuildEnvelope but accepts a context, propagated to
@@ -46,13 +46,30 @@ func BuildEnvelopeCtx(
 	toolID, toolVersion string,
 	signer kms.Signer,
 ) (*types.Envelope, error) {
-	return buildEnvelopeCtx(ctx, request, result, toolID, toolVersion, signer)
+	return buildEnvelopeCtx(ctx, request, result, toolID, toolVersion, "", signer)
+}
+
+// BuildEnvelopeWithIdentityCtx is BuildEnvelopeCtx + an explicit invoked_by
+// override. Use the empty string to fall back to the unverified stub.
+//
+// When the caller has verified a ClientIdentityProof (spec § 6.11 — a DPoP
+// proof carrying the client's key), pass `did:jwk:<thumbprint>` here and the
+// envelope's invoked_by field will reflect the proof-of-possession identity.
+// This is what flips an envelope from validation level 2 (cryptographically
+// valid) to level 3 (trust-anchored) per spec § 12.
+func BuildEnvelopeWithIdentityCtx(
+	ctx context.Context,
+	request, result interface{},
+	toolID, toolVersion, invokedBy string,
+	signer kms.Signer,
+) (*types.Envelope, error) {
+	return buildEnvelopeCtx(ctx, request, result, toolID, toolVersion, invokedBy, signer)
 }
 
 func buildEnvelopeCtx(
 	ctx context.Context,
 	request, result interface{},
-	toolID, toolVersion string,
+	toolID, toolVersion, invokedBy string,
 	signer kms.Signer,
 ) (*types.Envelope, error) {
 
@@ -75,13 +92,17 @@ func buildEnvelopeCtx(
 	}
 
 	// --- Step 3: assemble envelope (signature.value absent for signing) ---
+	resolvedInvokedBy := invokedBy
+	if resolvedInvokedBy == "" {
+		resolvedInvokedBy = invokedByStub
+	}
 	env := &types.Envelope{
 		Version:       envelopeVersion,
 		ToolCallID:    uuid.NewString(), // MVP stub; real call-ID comes from the MCP client
 		ToolID:        toolID,
 		ToolVersion:   toolVersion,
 		InvokedAt:     time.Now().UTC().Format(time.RFC3339),
-		InvokedBy:     invokedByStub,
+		InvokedBy:     resolvedInvokedBy,
 		RequestDigest: reqDigest,
 		ResultDigest:  resDigest,
 		Sources:       stubSources(),
