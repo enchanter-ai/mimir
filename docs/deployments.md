@@ -86,9 +86,44 @@ Anyone with a funded Sepolia wallet can `register` / `revoke` against this contr
 
 ---
 
+### v0.1.0 — AVS mode — 2026-05-19
+
+Second instance on Sepolia, deployed in AVS mode (operator-gated `register`, slashing-on-revoke). Wired to mock EigenLayer contracts deployed alongside:
+
+| Contract | Address |
+|---|---|
+| **MimirValidationRegistry (AVS)** | [`0xF67f9A7574883a2BDd1841004eC2cc189D616F8a`](https://sepolia.etherscan.io/address/0xF67f9A7574883a2BDd1841004eC2cc189D616F8a) |
+| **MockServiceManager** | [`0x8292921a02936fc6F16A95151b6AEE4375B2222F`](https://sepolia.etherscan.io/address/0x8292921a02936fc6F16A95151b6AEE4375B2222F) |
+| **MockSlasher** | [`0xb65E2e62692243f2c2C20fe02438F0406206d5Eb`](https://sepolia.etherscan.io/address/0xb65E2e62692243f2c2C20fe02438F0406206d5Eb) |
+
+**Mode:** AVS (`avsModeEnabled() == true`)
+**slashWad:** `1e17` (= 10% of allocation per accepted fraud proof)
+**Deploy date:** 2026-05-19
+**Deployer:** `0xC777261913DcB9a64C8fC82c392d8B26B97BcB0E`
+
+#### 7/7 lifecycle confirmed on-chain
+
+Ran [`anchor/go/cmd/verify-avs`](../anchor/go/cmd/verify-avs/main.go) against the live deployment:
+
+| Step | Outcome |
+|---|---|
+| `MockServiceManager.registerOperator(caller)` | block 10880219, 45k gas, OK |
+| `AnchorEnvelope(random_digest, expiry)` (now operator-gated) | block 10880220, 96k gas, OK |
+| `VerifyAnchor(digest)` reads back issuer + expiry; revoked=false | view call OK |
+| `IsValid(digest)` returns true | view call OK |
+| `RevokeAnchor(digest, proof)` flips revoked AND fires `Slasher.slash()` | block 10880221, 62k gas, OK |
+| `MockSlasher.totalSlashed(caller)` returns 1e17 (matches slashWad) | view call OK |
+| Re-verify: revoked=true, IsValid=false | view calls OK |
+
+**What this proves:** the full AVS-mode contract wiring works on a real Ethereum-equivalent chain — operator gating, slashing trigger, slash-event recording, post-revoke state transitions all behave as the simulated-EVM tests predicted.
+
+**What this does NOT prove:** integration with real EigenLayer. The `IEigenLayer.sol` shape we ship is a narrow Mimir-side abstraction; real EigenLayer v2 `AllocationManager.slash()` takes a `SlashingParams` struct with a different ABI. Aligning to real EigenLayer requires `IEigenLayer.sol` refactor + tests + re-deploy (v0.2 follow-up).
+
+---
+
 ## Holesky testnet
 
-*Not yet deployed. Holesky public RPCs were unstable as of 2026-05-16; we pivoted to Sepolia.*
+**Holesky deprecated by the Ethereum Foundation (2025).** All public RPCs returned 0/5 working in our probe; Alchemy still routes the Holesky subdomain but the EF-recommended successor is **Hoodi** (launched 2025, positioned as EigenLayer-friendly). The Sepolia AVS deploy above serves the same "AVS-mode lifecycle works on a real chain" demonstration without depending on a deprecated network.
 
 ---
 
