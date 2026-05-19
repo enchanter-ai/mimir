@@ -73,6 +73,8 @@ const deployable = [
   "MimirValidationRegistry",
   "MockServiceManager",
   "MockSlasher",
+  "EigenLayerSlasherAdapter",
+  "MockAllocationManager",
 ];
 
 for (const name of deployable) {

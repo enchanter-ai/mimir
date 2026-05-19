@@ -117,7 +117,19 @@ Ran [`anchor/go/cmd/verify-avs`](../anchor/go/cmd/verify-avs/main.go) against th
 
 **What this proves:** the full AVS-mode contract wiring works on a real Ethereum-equivalent chain — operator gating, slashing trigger, slash-event recording, post-revoke state transitions all behave as the simulated-EVM tests predicted.
 
-**What this does NOT prove:** integration with real EigenLayer. The `IEigenLayer.sol` shape we ship is a narrow Mimir-side abstraction; real EigenLayer v2 `AllocationManager.slash()` takes a `SlashingParams` struct with a different ABI. Aligning to real EigenLayer requires `IEigenLayer.sol` refactor + tests + re-deploy (v0.2 follow-up).
+**What this does NOT prove:** integration with real EigenLayer. The `IEigenLayer.sol` shape we ship is a narrow Mimir-side abstraction; real EigenLayer v2 `AllocationManager.slash()` takes a `SlashingParams` struct with a different ABI.
+
+**Real-EigenLayer alignment lands here as an adapter pattern (v0.1.1+):**
+- [`anchor/contracts/EigenLayerSlasherAdapter.sol`](../anchor/contracts/EigenLayerSlasherAdapter.sol) — thin Solidity contract that implements Mimir's `ISlasher` and forwards each slash to a real EigenLayer v2 `AllocationManager` via the canonical `SlashingParams` struct. Operators deploy this alongside the Mimir registry pointing at the AllocationManager for their target network (mainnet / Hoodi).
+- [`anchor/contracts/MockAllocationManager.sol`](../anchor/contracts/MockAllocationManager.sol) — exact-shape mock for tests.
+- [`anchor/go/eigenlayer_adapter_test.go`](../anchor/go/eigenlayer_adapter_test.go) — 4/4 PASS: confirms the adapter packs `SlashingParams` correctly (right operator, operatorSetId, per-strategy wads, hex-encoded reasonHash in description).
+
+To wire Mimir against real EigenLayer:
+1. Deploy `EigenLayerSlasherAdapter` with `_allocationManager = <real AllocationManager address>`, `_operatorSetId = <your AVS's set id>`, `strategies = [<your strategy addresses>]`
+2. Deploy `MimirValidationRegistry` with `_slasher = <adapter address>`
+3. Register the adapter as authorized to slash at the real `AllocationManager` (EigenLayer operator-registration flow)
+
+The Mimir registry itself stays unchanged — same `ISlasher` interface, swap the implementation.
 
 ---
 
