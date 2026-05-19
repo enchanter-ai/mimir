@@ -6,6 +6,38 @@ Each entry is verifiable by anyone: visit the Etherscan link, confirm the byteco
 
 ---
 
+## AWS KMS — production signing keys
+
+### prod / eu-west-1 — Ed25519 — 2026-05-19
+
+| Field | Value |
+|---|---|
+| **Key ARN** | `arn:aws:kms:eu-west-1:256097482700:key/a5ae51a1-006d-4c72-9546-321a1c690452` |
+| **Alias** | `alias/mimir-issuer-prod` |
+| **Region** | `eu-west-1` (Ireland) |
+| **Key spec** | `ECC_NIST_EDWARDS25519` (Ed25519) |
+| **Key usage** | `SIGN_VERIFY` |
+| **Signing algorithm** | `ED25519_SHA_512` |
+| **Rotation** | Disabled (Mimir rotates via JWK Set; see [`scripts/rotate-key.py`](../scripts/rotate-key.py)) |
+| **IAM role** | `arn:aws:iam::256097482700:role/mimir-issuer-prod` |
+| **IAM policy** | `arn:aws:iam::256097482700:policy/mimir-issuer-kms-use-prod` (kms:Sign + kms:GetPublicKey + kms:DescribeKey, scoped to this key only) |
+| **Account** | `256097482700` |
+| **Provisioned by** | aws-cli (2026-05-19) — matches the Terraform module shape in [`deploy/aws-kms/main.tf`](../deploy/aws-kms/main.tf) |
+
+**Measured performance** (end-to-end including HTTP + KMS round-trip from outside eu-west-1):
+- Cold start: ~308 ms
+- Steady state: 97–112 ms p50
+- External Ed25519 verify (PyNaCl, local): 15 ms
+
+**Smoke test confirmed**:
+- Issuer started with `KMS_MODE=aws KMS_KEY_ARN=... AWS_REGION=eu-west-1`
+- `GET /v1/key` returns the KMS ARN as `kid`, raw 32-byte pub key as `x`
+- `POST /v1/attest` produces an envelope whose signature externally verifies
+  against the published JWK with PyNaCl (independent crypto library)
+- 4/4 attest calls returned 200 with valid signatures
+
+---
+
 ## Sepolia testnet (chain_id 11155111)
 
 ### v0.1.0 — Permissionless mode (smoke test)
