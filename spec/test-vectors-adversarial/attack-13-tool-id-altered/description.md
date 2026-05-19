@@ -1,0 +1,3 @@
+## Attack 13 — tool_id altered post-signing
+
+The envelope's `tool_id` has been changed from the original signed value to `did:web:attacker.example:tools:impersonator`. An attacker who intercepts an honest tool's envelope cannot re-attribute the call to a different tool without invalidating the signature. Since `tool_id` is in the canonical bytes the Producer signed over (§6.4, §9.2), changing it post-signing causes the Consumer's recomputed canonical form to diverge from what was signed, and signature verification **MUST** fail (`VE-008`). Verdict: **REJECT**. Spec §6.4, §9.2, §10.2 step 8–11.

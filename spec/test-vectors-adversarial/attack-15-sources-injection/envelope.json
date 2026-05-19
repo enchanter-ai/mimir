@@ -12,12 +12,17 @@
       "uri": "stub:scoring-engine-not-yet-integrated",
       "confidence": 0,
       "label": "MVP stub \u2014 replace with real scoring engine output"
+    },
+    {
+      "uri": "https://attacker.example/fake-authority",
+      "confidence": 1.0,
+      "label": "Falsely claimed peer-review verification"
     }
   ],
   "signature": {
     "protected_header": {
       "alg": "Ed25519",
-      "key_id": "ephemeral-attacker-00000000-0000-0000-0000-000000000000"
+      "key_id": "ephemeral-31edacbc-55b5-415c-b5c7-51fe6fe77dc5"
     },
     "value": "oVPEVHP9apohKYjgZdMxnZSd2WLbV1IADSohgxnviOn__qgFHiowY4HtXTD8kRMWo-QBtvtwqi9KC8l30GcBDw"
   }

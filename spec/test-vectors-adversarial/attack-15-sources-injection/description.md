@@ -1,0 +1,3 @@
+## Attack 15 — `sources` array tampering (injection)
+
+An additional fabricated entry has been appended to the envelope's `sources` array claiming a high-confidence external authority. Mimir's source-binding guarantee (spec §1.2 novelty claim, §6.5) is that the upstream sources a Producer claims it consulted are signed under the same envelope as the request and result. An attacker who injects a fake source post-signing changes the canonical bytes the Consumer recomputes, and the Producer's signature no longer matches. Verdict: **REJECT** with `VE-008`. Spec §1.2, §6.5, §9.2, §10.2 step 8–11.

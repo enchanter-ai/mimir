@@ -4,7 +4,7 @@
   "tool_id": "did:web:demo.enchanter-labs.io:tools:fetch-document",
   "tool_version": "1.0.0",
   "invoked_at": "2026-05-13T18:23:41Z",
-  "invoked_by": "did:enchanter:unverified",
+  "invoked_by": "did:jwk:fakeFakeFakeFakeFakeFakeFakeFakeFakeFakeFakeFakeFakeFake",
   "request_digest": "sha-256:32e332cf1042b1ebdd559cac6a352ab2a70b4d6b62d4f83e89a277dc8bd8d677",
   "result_digest": "sha-256:9adaf6a4174851569b41b1284a424b4ef296a2392238f8e354bf3a39b2a9f200",
   "sources": [
@@ -17,7 +17,7 @@
   "signature": {
     "protected_header": {
       "alg": "Ed25519",
-      "key_id": "ephemeral-attacker-00000000-0000-0000-0000-000000000000"
+      "key_id": "ephemeral-31edacbc-55b5-415c-b5c7-51fe6fe77dc5"
     },
     "value": "oVPEVHP9apohKYjgZdMxnZSd2WLbV1IADSohgxnviOn__qgFHiowY4HtXTD8kRMWo-QBtvtwqi9KC8l30GcBDw"
   }

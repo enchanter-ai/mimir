@@ -523,8 +523,77 @@ def main() -> None:
         {"verdict": "REJECT", "reason_code": "VE-008", "spec_section": "§9.2, §10.2, §15.16"},
     )
 
+    # -----------------------------------------------------------------------
+    # Attack 13 — tool_id altered to claim a different tool produced this envelope.
+    # Tests that envelope provenance binds the tool's identity, not just the request.
+    # -----------------------------------------------------------------------
+    e = copy.deepcopy(baseline)
+    e["tool_id"] = "did:web:attacker.example:tools:impersonator"
+    write_attack(
+        "attack-13-tool-id-altered",
+        e, jwk,
+        "## Attack 13 — tool_id altered post-signing\n\n"
+        "The envelope's `tool_id` has been changed from the original signed value to "
+        "`did:web:attacker.example:tools:impersonator`. An attacker who intercepts an "
+        "honest tool's envelope cannot re-attribute the call to a different tool "
+        "without invalidating the signature. Since `tool_id` is in the canonical bytes "
+        "the Producer signed over (§6.4, §9.2), changing it post-signing causes the "
+        "Consumer's recomputed canonical form to diverge from what was signed, and "
+        "signature verification **MUST** fail (`VE-008`). Verdict: **REJECT**. "
+        "Spec §6.4, §9.2, §10.2 step 8–11.\n",
+        {"verdict": "REJECT", "reason_code": "VE-008", "spec_section": "§6.4, §9.2, §10.2"},
+    )
+
+    # -----------------------------------------------------------------------
+    # Attack 14 — invoked_by altered to claim a different client identity.
+    # Tests that client-identity attestation (relevant for DPoP-extension envelopes
+    # at validation level 3) is bound under the same signature.
+    # -----------------------------------------------------------------------
+    e = copy.deepcopy(baseline)
+    e["invoked_by"] = "did:jwk:fakeFakeFakeFakeFakeFakeFakeFakeFakeFakeFakeFakeFakeFake"
+    write_attack(
+        "attack-14-invoked-by-altered",
+        e, jwk,
+        "## Attack 14 — invoked_by altered post-signing\n\n"
+        "The envelope's `invoked_by` has been changed from the original signed value "
+        "(`did:enchanter:unverified` in the baseline) to a fabricated `did:jwk:fake…`. "
+        "An attacker who captures an honest envelope cannot re-attribute the request "
+        "to a different client without breaking the signature. `invoked_by` is part of "
+        "the canonical bytes the Producer signed (§6.4); any post-signing modification "
+        "fails verification with `VE-008`. Verdict: **REJECT**. "
+        "Spec §6.4, §6.11 (ClientIdentityProof extension binding), §10.2.\n",
+        {"verdict": "REJECT", "reason_code": "VE-008", "spec_section": "§6.4, §6.11, §10.2"},
+    )
+
+    # -----------------------------------------------------------------------
+    # Attack 15 — sources array tampering (injected fabricated source entry).
+    # Tests that the source-binding property promised by §6.5 holds.
+    # -----------------------------------------------------------------------
+    e = copy.deepcopy(baseline)
+    e["sources"] = e.get("sources", []) + [
+        {
+            "uri": "https://attacker.example/fake-authority",
+            "confidence": 1.0,
+            "label": "Falsely claimed peer-review verification",
+        }
+    ]
+    write_attack(
+        "attack-15-sources-injection",
+        e, jwk,
+        "## Attack 15 — `sources` array tampering (injection)\n\n"
+        "An additional fabricated entry has been appended to the envelope's `sources` "
+        "array claiming a high-confidence external authority. Mimir's source-binding "
+        "guarantee (spec §1.2 novelty claim, §6.5) is that the upstream sources a "
+        "Producer claims it consulted are signed under the same envelope as the request "
+        "and result. An attacker who injects a fake source post-signing changes the "
+        "canonical bytes the Consumer recomputes, and the Producer's signature no longer "
+        "matches. Verdict: **REJECT** with `VE-008`. "
+        "Spec §1.2, §6.5, §9.2, §10.2 step 8–11.\n",
+        {"verdict": "REJECT", "reason_code": "VE-008", "spec_section": "§1.2, §6.5, §9.2, §10.2"},
+    )
+
     print()
-    print(f"Generated 12 attack vectors in {HERE}/")
+    print(f"Generated 15 attack vectors in {HERE}/")
     print("Run verify-all.py to assert expected verdicts.")
 
 if __name__ == "__main__":

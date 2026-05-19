@@ -1,7 +1,7 @@
 {
   "version": "mcp-provenance/2026-05-13-ed25519",
   "tool_call_id": "3c7f99cc-1700-460a-9475-9cf4d09c907e",
-  "tool_id": "did:web:demo.enchanter-labs.io:tools:fetch-document",
+  "tool_id": "did:web:attacker.example:tools:impersonator",
   "tool_version": "1.0.0",
   "invoked_at": "2026-05-13T18:23:41Z",
   "invoked_by": "did:enchanter:unverified",
@@ -17,7 +17,7 @@
   "signature": {
     "protected_header": {
       "alg": "Ed25519",
-      "key_id": "ephemeral-attacker-00000000-0000-0000-0000-000000000000"
+      "key_id": "ephemeral-31edacbc-55b5-415c-b5c7-51fe6fe77dc5"
     },
     "value": "oVPEVHP9apohKYjgZdMxnZSd2WLbV1IADSohgxnviOn__qgFHiowY4HtXTD8kRMWo-QBtvtwqi9KC8l30GcBDw"
   }
