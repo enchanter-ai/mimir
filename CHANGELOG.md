@@ -8,7 +8,20 @@ The `spec/` directory is versioned independently — see `spec/index.mdx` frontm
 
 ## [Unreleased]
 
-Items in `main` that haven't yet shipped under a tag. Promoted to a version section on tag.
+### Added (v0.1.1-pending)
+
+- **`EigenLayerSlasherAdapter.sol`** — production-shape adapter that implements Mimir's narrow `ISlasher` interface by translating to EigenLayer v2's `AllocationManager.slash(SlashingParams)`. Operators deploy this alongside the registry when they want slashes routed to a real EigenLayer AllocationManager; Mimir's registry stays restaking-primitive-agnostic.
+- **`MockAllocationManager.sol`** — real-EigenLayer-shape mock implementing `slash(SlashingParams)` for tests + on-chain demonstration of the adapter pattern.
+- **`anchor/go/cmd/deploy-eigenlayer`** — one-shot deploy + verify program: deploys the full 4-contract stack (MockAllocationManager, EigenLayerSlasherAdapter, MockServiceManager, MimirValidationRegistry) and runs a live `register → anchor → revoke → confirm slash` lifecycle with on-chain assertions.
+- **Live Sepolia EigenLayer-adapter deployment** at [`0x633E3e37068a6205DD662a4b8b3637e860e49E42`](https://sepolia.etherscan.io/address/0x633E3e37068a6205DD662a4b8b3637e860e49E42) — full lifecycle proven; all four `SlashingParams` fields verified correct against on-chain `MockAllocationManager`.
+- 4 new Go tests (`eigenlayer_adapter_test.go`): call-translation correctness + 3 defensive-input rejections. Anchor module is now **14/14 PASS**.
+- `scripts/probe-rpcs.py` — added Hoodi network probes (chain_id 560048; Ethereum Foundation successor to Holesky).
+- `docs/deployments.md` — v0.1.1 entry with EigenLayer adapter on-chain assertions table + reproduction commands.
+
+### Migration notes
+
+- Mimir's `ISlasher` interface (in `IEigenLayer.sol`) is **unchanged**; no breaking change to the registry's slasher-call shape.
+- Operators wanting to integrate with real EigenLayer should deploy `EigenLayerSlasherAdapter` pointing at the canonical `AllocationManager` for their network (mainnet / Hoodi — see https://github.com/Layr-Labs/eigenlayer-contracts/tree/dev/script/output for the addresses).
 
 ---
 

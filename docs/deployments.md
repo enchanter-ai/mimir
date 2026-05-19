@@ -133,6 +133,40 @@ The Mimir registry itself stays unchanged — same `ISlasher` interface, swap th
 
 ---
 
+### v0.1.1 — EigenLayer adapter stack live — 2026-05-19
+
+Fourth Sepolia slot, demonstrating the full EigenLayer-adapter pattern end-to-end on a real chain. The lifecycle ran live with on-chain assertions confirming all four `SlashingParams` fields are correctly populated by the adapter.
+
+| Contract | Address |
+|---|---|
+| **MockAllocationManager** | [`0x7EB8bbf3D6587E4F3E8924D12ff379ace1BB64D6`](https://sepolia.etherscan.io/address/0x7EB8bbf3D6587E4F3E8924D12ff379ace1BB64D6) |
+| **EigenLayerSlasherAdapter** | [`0xe0E1f39BAa7cD4610F8702c904B2376D887ea7C1`](https://sepolia.etherscan.io/address/0xe0E1f39BAa7cD4610F8702c904B2376D887ea7C1) |
+| **MockServiceManager** | [`0x7F691730F3EBb1522fE8619d663393Ab075007B7`](https://sepolia.etherscan.io/address/0x7F691730F3EBb1522fE8619d663393Ab075007B7) |
+| **MimirValidationRegistry (AVS, adapter)** | [`0x633E3e37068a6205DD662a4b8b3637e860e49E42`](https://sepolia.etherscan.io/address/0x633E3e37068a6205DD662a4b8b3637e860e49E42) |
+
+operatorSetId=1, strategies=`[0x111…1111]`, slashWad=1e17, deployer=`0xC777…cB0E`.
+
+**On-chain assertions after `RevokeAnchor` (block 10880311, 261k gas):**
+
+| AllocationManager field | Observed | Expected |
+|---|---|---|
+| `totalSlashedRecorded(operator)` | 100000000000000000 | 1e17 ✓ |
+| `lastOperatorSetId` | 1 | 1 ✓ |
+| `lastStrategyCount` | 1 | 1 ✓ |
+| `lastDescription` | `0x832f7ee4…a7130d` | hex(reasonHash) ✓ |
+
+Replacing `MockAllocationManager` with a real EigenLayer AllocationManager (mainnet / Hoodi) is a deploy-time env var change; the adapter Solidity stays identical:
+
+```bash
+cd anchor/go
+ALLOCATION_MANAGER=<real-AllocationManager-addr> \
+HOLESKY_RPC_URL=https://eth-hoodi.g.alchemy.com/v2/<key> \
+HOLESKY_PRIVATE_KEY=<hex> \
+  go run ./cmd/deploy-eigenlayer
+```
+
+---
+
 ## Holesky testnet
 
 **Holesky deprecated by the Ethereum Foundation (2025).** All public RPCs returned 0/5 working in our probe; Alchemy still routes the Holesky subdomain but the EF-recommended successor is **Hoodi** (launched 2025, positioned as EigenLayer-friendly). The Sepolia AVS deploy above serves the same "AVS-mode lifecycle works on a real chain" demonstration without depending on a deprecated network.

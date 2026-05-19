@@ -36,11 +36,20 @@ ENDPOINTS = {
         "https://1rpc.io/sepolia",
     ],
     "holesky": [
+        # Holesky deprecated by Ethereum Foundation as of 2025; left here for
+        # historical probes. Use Hoodi for new testnet work.
         "https://ethereum-holesky.publicnode.com",
         "https://ethereum-holesky-rpc.publicnode.com",
         "https://1rpc.io/holesky",
         "https://holesky.gateway.tenderly.co",
         "https://rpc.holesky.ethpandaops.io",
+    ],
+    "hoodi": [
+        # Hoodi: Ethereum Foundation's successor to Holesky (launched 2025;
+        # positioned as the EigenLayer-friendly testnet).
+        "https://ethereum-hoodi.publicnode.com",
+        "https://ethereum-hoodi-rpc.publicnode.com",
+        "https://rpc.hoodi.ethpandaops.io",
     ],
     "mainnet": [
         "https://ethereum.publicnode.com",
@@ -54,6 +63,7 @@ ENDPOINTS = {
 EXPECTED_CHAIN_ID = {
     "sepolia": 11155111,
     "holesky": 17000,
+    "hoodi":   560048,
     "mainnet": 1,
 }
 
