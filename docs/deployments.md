@@ -46,6 +46,7 @@ Each entry is verifiable by anyone: visit the Etherscan link, confirm the byteco
 |---|---|
 | **Contract** | [`0xEbdAa5a99DFde9a4A603aacfE1cC5AcFc0DA4117`](https://sepolia.etherscan.io/address/0xEbdAa5a99DFde9a4A603aacfE1cC5AcFc0DA4117) |
 | **Mode** | PERMISSIONLESS (`avsModeEnabled() == false`) |
+| **Source-verified** | ✅ Etherscan ([code tab](https://sepolia.etherscan.io/address/0xEbdAa5a99DFde9a4A603aacfE1cC5AcFc0DA4117#code)) — solc 0.8.20+commit.a1b79de6, optimizer runs=200, MIT |
 | **Deployer** | `0xC777261913DcB9a64C8fC82c392d8B26B97BcB0E` |
 | **Deploy tx** | [`0x0bbdc55…6ac2`](https://sepolia.etherscan.io/tx/0x0bbdc5528575b944179e3fc37007ad48111b407de45d067c8be96b809fc86ac2) |
 | **Deploy block** | 10863180 |
