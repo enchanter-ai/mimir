@@ -102,6 +102,17 @@ title: Mimir envelope flow
 config:
   look: neo
   theme: dark
+  themeVariables:
+    background: '#0d1117'
+    primaryColor: '#161b22'
+    primaryTextColor: '#e6edf3'
+    primaryBorderColor: '#30363d'
+    lineColor: '#8b949e'
+    secondaryColor: '#161b22'
+    tertiaryColor: '#0d1117'
+    clusterBkg: '#06111f'
+    clusterBorder: '#1e3a5f'
+    fontFamily: '-apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif'
   flowchart:
     curve: basis
     padding: 18
@@ -203,6 +214,17 @@ title: Mimir provenance lifecycle
 config:
   look: neo
   theme: dark
+  themeVariables:
+    background: '#0d1117'
+    primaryColor: '#161b22'
+    primaryTextColor: '#e6edf3'
+    primaryBorderColor: '#30363d'
+    lineColor: '#8b949e'
+    secondaryColor: '#161b22'
+    tertiaryColor: '#0d1117'
+    clusterBkg: '#06111f'
+    clusterBorder: '#1e3a5f'
+    fontFamily: '-apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif'
   flowchart:
     curve: basis
     padding: 18
@@ -277,6 +299,17 @@ title: Mimir slashing path
 config:
   look: neo
   theme: dark
+  themeVariables:
+    background: '#0d1117'
+    primaryColor: '#161b22'
+    primaryTextColor: '#e6edf3'
+    primaryBorderColor: '#30363d'
+    lineColor: '#8b949e'
+    secondaryColor: '#161b22'
+    tertiaryColor: '#0d1117'
+    clusterBkg: '#06111f'
+    clusterBorder: '#1e3a5f'
+    fontFamily: '-apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif'
   flowchart:
     curve: basis
     padding: 18
@@ -337,9 +370,9 @@ Five engines, each with a formal definition. Full derivations + proofs live in [
 
 ### M1 — Envelope canonicalization and signature
 
-Given an envelope $E$ with signed-fields tuple $F(E) = (\text{tool\_id}, \text{tool\_version}, \text{invoked\_at}, \text{invoked\_by}, \text{request\_digest}, \text{result\_digest}, \text{sources})$:
+Let envelope $E$ have signed-fields tuple $F(E)$ comprising the seven fields `tool_id`, `tool_version`, `invoked_at`, `invoked_by`, `request_digest`, `result_digest`, and `sources`. Then:
 
-$$C(E) = \mathrm{JCS}_{\text{RFC 8785}}\bigl(F(E)\bigr)$$
+$$C(E) = \mathrm{JCS}_{\mathrm{RFC8785}}\bigl(F(E)\bigr)$$
 
 $$\sigma_E = \mathrm{Ed25519\text{-}sign}_{sk}\bigl(C(E)\bigr)$$
 
@@ -349,13 +382,13 @@ Canonicalization is RFC 8785 (JSON Canonicalization Scheme): lexicographic key s
 
 ### M2 — Three-level validation predicate
 
-Validation is layered; each level subsumes the previous:
+Validation is layered; each level subsumes the previous. Let $\mathrm{CIP}(E)$ be the DPoP `client_identity_proof` extension of $E$ (spec § 6.11), and $\mathrm{anchor}(t)$ the trust-anchor lookup for `tool_id` $t$:
 
-$$L_1(E) := \mathrm{well\text{-}formed}(E)$$
+$$L_1(E) := \mathrm{wellFormed}(E)$$
 
-$$L_2(E) := L_1(E) \land \mathrm{verify}\bigl(E,\ pk_{\text{published}}\bigr)$$
+$$L_2(E) := L_1(E) \land \mathrm{verify}\bigl(E,\ pk_\mathrm{pub}\bigr)$$
 
-$$L_3(E) := L_2(E) \land \mathrm{DPoP}\bigl(E.\text{client\_identity\_proof}\bigr) \land \mathrm{anchor}\bigl(E.\text{tool\_id}\bigr) = pk_{\text{published}}$$
+$$L_3(E) := L_2(E) \land \mathrm{DPoP}\bigl(\mathrm{CIP}(E)\bigr) \land \mathrm{anchor}\bigl(E.\mathrm{toolId}\bigr) = pk_\mathrm{pub}$$
 
 $$\mathrm{VALID}_k(E) \iff L_k(E)$$
 
@@ -375,17 +408,17 @@ where $A_1, \ldots, A_8$ are the SAT predicates ( `is_grounded`, `has_citations`
 
 Let $E$ be a registered envelope, $\pi$ a fraud proof, and $\mathrm{stake}(o)$ the restaked allocation of operator $o$:
 
-$$\mathrm{slash}(E, \pi) \iff \mathrm{revoke}(E, \pi) \ \land\ \mathrm{registered}(E.\text{digest}) \ \land\ \mathrm{stake}(E.\text{issuer}) > 0$$
+$$\mathrm{slash}(E, \pi) \iff \mathrm{revoke}(E, \pi) \ \land\ \mathrm{registered}\bigl(E.\mathrm{digest}\bigr) \ \land\ \mathrm{stake}\bigl(E.\mathrm{issuer}\bigr) > 0$$
 
 When the condition holds, the adapter emits `AllocationManager.slash(SlashingParams)`:
 
-$$\Delta_{\mathrm{stake}}\bigl(E.\text{issuer}\bigr) \ =\ -\bigl|\text{strategies}\bigr| \cdot w_{\text{slashed}}$$
+$$\Delta_\mathrm{stake}\bigl(E.\mathrm{issuer}\bigr) \ =\ -\bigl|\mathrm{strategies}\bigr| \cdot w_\mathrm{slashed}$$
 
-with $w_{\text{slashed}} \in [0,\ 10^{18}]$ (defensive `requires` in `EigenLayerSlasherAdapter.sol`). $\Delta_{\mathrm{stake}}$ is what the issuer actually loses; the adapter ensures the wad applies uniformly across all strategies in the operator's slashable set.
+with $w_\mathrm{slashed} \in [0,\ 10^{18}]$ (defensive `requires` in `EigenLayerSlasherAdapter.sol`). $\Delta_\mathrm{stake}$ is what the issuer actually loses; the adapter ensures the wad applies uniformly across all strategies in the operator's slashable set.
 
 ### M5 — Adversarial coverage Ω
 
-For an attack set $\mathcal{A} = \{a_1, \ldots, a_n\}$ where each $a_i$ tampers a specific envelope field (signature, alg, kid, tool_id, invoked_by, request_digest, result_digest, sources entry, expiry, JCS-whitespace-canonicalized variant, …):
+For an attack set $\mathcal{A} = \{a_1, \ldots, a_n\}$ where each $a_i$ tampers a specific envelope field (signature, alg, kid, `tool_id`, `invoked_by`, `request_digest`, `result_digest`, sources entry, expiry, JCS-whitespace-canonicalized variant, …):
 
 $$\Omega = \frac{\bigl|\{a_i \in \mathcal{A} : \mathrm{verify}\bigl(a_i(E)\bigr) = \mathrm{REJECT}\}\bigr|}{|\mathcal{A}|}$$
 
