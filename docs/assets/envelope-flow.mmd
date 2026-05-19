@@ -1,24 +1,60 @@
-flowchart LR
-    classDef client  fill:#1f6feb,stroke:#1f6feb,color:#fff
-    classDef server  fill:#bc8cff,stroke:#bc8cff,color:#000
-    classDef oracle  fill:#f0883e,stroke:#f0883e,color:#000
-    classDef issuer  fill:#3fb950,stroke:#3fb950,color:#000
-    classDef chain   fill:#d29922,stroke:#d29922,color:#000
-    classDef verify  fill:#58a6ff,stroke:#58a6ff,color:#000
+---
+title: Mimir envelope flow
+config:
+  look: neo
+  theme: dark
+  flowchart:
+    curve: basis
+    padding: 18
+    nodeSpacing: 44
+    rankSpacing: 50
+    htmlLabels: true
+    subGraphTitleMargin:
+      top: 14
+      bottom: 18
+---
+flowchart TB
+    TitleBlock["<div style='font-family:ui-monospace,SFMono-Regular,Consolas,monospace;text-align:center;min-width:940px;padding:6px 10px;line-height:1.8'><div style='color:#58a6ff;font-size:15px;letter-spacing:6px;border-bottom:1px solid #1e3a5f;padding-bottom:10px;margin-bottom:10px'>MIMIR &nbsp;·&nbsp; ENVELOPE&nbsp;FLOW &nbsp;·&nbsp; PIPELINE&nbsp;DIAGRAM</div><div style='display:flex;gap:40px;justify-content:center;font-size:11px;color:#8b949e;letter-spacing:2px'><span>DWG&nbsp;&nbsp;<b style='color:#e6edf3'>MMR-001</b></span><span>REV&nbsp;&nbsp;<b style='color:#e6edf3'>A.1</b></span><span>SCALE&nbsp;&nbsp;<b style='color:#e6edf3'>1:1</b></span><span>STAGES&nbsp;&nbsp;<b style='color:#e6edf3'>n&nbsp;=&nbsp;6</b></span><span>SHEET&nbsp;&nbsp;<b style='color:#e6edf3'>01&nbsp;/&nbsp;01</b></span></div></div>"]
 
-    A["MCP client<br/>(Claude Desktop / Cursor / Cline)"]:::client
-    B["Your MCP server<br/>(forks examples/mcp-server-starter)"]:::server
-    C["Scoring oracle<br/>Claude Sonnet 4.6<br/>5-axis × 8-SAT, σ-bound"]:::oracle
-    D["Mimir issuer (Go)<br/>JCS RFC 8785 → SHA-256<br/>Ed25519 sign via AWS KMS"]:::issuer
-    E["MimirValidationRegistry<br/>(on-chain anchor,<br/>ERC-8004 shape)"]:::chain
-    F["Independent verifier<br/>(Rust / Go / TS)<br/>recompute JCS, verify sig"]:::verify
+    Client["<div style='text-align:center;min-width:940px;line-height:2;padding:4px 8px'><div><span style='font-family:ui-monospace,monospace;color:#8b949e;font-size:11px;letter-spacing:3px'>NODE&nbsp;01&nbsp;·&nbsp;INVOCATION</span></div><div style='line-height:1.8'><b style='letter-spacing:2px'>MCP&nbsp;CLIENT</b>&nbsp;&nbsp;·&nbsp;&nbsp;<span style='color:#58a6ff'>Claude&nbsp;Desktop&nbsp;/&nbsp;Cursor&nbsp;/&nbsp;Cline</span></div><div style='color:#6e7681;font-size:11px;font-family:ui-monospace,monospace;letter-spacing:1.2px'>JSON-RPC&nbsp;2.0&nbsp;&nbsp;·&nbsp;&nbsp;tools/call&nbsp;&nbsp;·&nbsp;&nbsp;client_identity_proof&nbsp;(DPoP)</div><div style='border-top:1px solid #1e3a5f;margin-top:6px;padding-top:6px;font-family:ui-monospace,monospace;font-size:11px;letter-spacing:1px'><span style='color:#8b949e'>EMITS</span>&nbsp;&nbsp;<span style='color:#79c0ff'>request&nbsp;+&nbsp;invoked_by</span></div></div>"]
 
-    A -- "tools/call" --> B
-    B -- "(request, result)" --> C
-    C -- "DEPLOY | HOLD | FAIL" --> B
-    B -- "if DEPLOY:<br/>POST /v1/attest-mcp" --> D
-    D -- "signed envelope" --> B
-    B -- "result + envelope" --> A
-    B -. "register(digest)" .-> E
-    A -. "envelope" .-> F
-    F -. "REJECT triggers<br/>revoke(digest, proof)" .-> E
+    Server["<div style='text-align:center;min-width:940px;line-height:2;padding:4px 8px'><div><span style='font-family:ui-monospace,monospace;color:#8b949e;font-size:11px;letter-spacing:3px'>NODE&nbsp;02&nbsp;·&nbsp;EXECUTION</span></div><div style='line-height:1.8'><b style='letter-spacing:2px'>MCP&nbsp;SERVER</b>&nbsp;&nbsp;·&nbsp;&nbsp;<span style='color:#bc8cff'>forks&nbsp;mcp-server-starter</span></div><div style='color:#6e7681;font-size:11px;font-family:ui-monospace,monospace;letter-spacing:1.2px'>tool&nbsp;runs&nbsp;&nbsp;·&nbsp;&nbsp;collects&nbsp;sources[]&nbsp;&nbsp;·&nbsp;&nbsp;orchestrates&nbsp;oracle&nbsp;+&nbsp;issuer</div><div style='border-top:1px solid #1e3a5f;margin-top:6px;padding-top:6px;font-family:ui-monospace,monospace;font-size:11px;letter-spacing:1px'><span style='color:#8b949e'>EMITS</span>&nbsp;&nbsp;<span style='color:#d2a8ff'>(request,&nbsp;result,&nbsp;sources)</span></div></div>"]
+
+    Oracle["<div style='text-align:center;min-width:940px;line-height:2;padding:4px 8px'><div><span style='font-family:ui-monospace,monospace;color:#8b949e;font-size:11px;letter-spacing:3px'>NODE&nbsp;03&nbsp;·&nbsp;QUALITY&nbsp;GATE</span></div><div style='line-height:1.8'><b style='letter-spacing:2px'>SCORING&nbsp;ORACLE</b>&nbsp;&nbsp;·&nbsp;&nbsp;<span style='color:#d8853b'>Claude&nbsp;Sonnet&nbsp;4.6</span>&nbsp;&nbsp;·&nbsp;&nbsp;<code style='color:#e6edf3'>POST&nbsp;/v1/score</code></div><div style='color:#6e7681;font-size:11px;font-family:ui-monospace,monospace;letter-spacing:1.2px'>5&nbsp;axes&nbsp;·&nbsp;8&nbsp;SAT&nbsp;assertions&nbsp;·&nbsp;σ&nbsp;<&nbsp;0.75&nbsp;·&nbsp;∀&nbsp;axis&nbsp;≥&nbsp;7.0</div><div style='border-top:1px solid #1e3a5f;margin-top:6px;padding-top:6px;font-family:ui-monospace,monospace;font-size:11px;letter-spacing:1px'><span style='color:#8b949e'>EMITS</span>&nbsp;&nbsp;<span style='color:#ffa657'>DEPLOY&nbsp;|&nbsp;HOLD&nbsp;|&nbsp;FAIL</span></div></div>"]
+
+    Issuer["<div style='text-align:center;min-width:940px;line-height:2;padding:4px 8px'><div><span style='font-family:ui-monospace,monospace;color:#8b949e;font-size:11px;letter-spacing:3px'>NODE&nbsp;04&nbsp;·&nbsp;SIGNATURE</span></div><div style='line-height:1.8'><b style='letter-spacing:2px'>MIMIR&nbsp;ISSUER</b>&nbsp;&nbsp;·&nbsp;&nbsp;<span style='color:#3fb950'>Go&nbsp;+&nbsp;AWS&nbsp;KMS</span>&nbsp;&nbsp;·&nbsp;&nbsp;<code style='color:#e6edf3'>POST&nbsp;/v1/attest-mcp</code></div><div style='color:#6e7681;font-size:11px;font-family:ui-monospace,monospace;letter-spacing:1.2px'>JCS&nbsp;RFC&nbsp;8785&nbsp;→&nbsp;SHA-256&nbsp;→&nbsp;Ed25519&nbsp;&nbsp;·&nbsp;&nbsp;97–112&nbsp;ms&nbsp;p50</div><div style='border-top:1px solid #1e3a5f;margin-top:6px;padding-top:6px;font-family:ui-monospace,monospace;font-size:11px;letter-spacing:1px'><span style='color:#8b949e'>EMITS</span>&nbsp;&nbsp;<span style='color:#7ee787'>signed&nbsp;envelope&nbsp;E&nbsp;=&nbsp;(F,&nbsp;σ_E)</span></div></div>"]
+
+    Chain["<div style='text-align:center;min-width:940px;line-height:2;padding:4px 8px'><div><span style='font-family:ui-monospace,monospace;color:#8b949e;font-size:11px;letter-spacing:3px'>NODE&nbsp;05&nbsp;·&nbsp;SETTLEMENT&nbsp;(OPTIONAL)</span></div><div style='line-height:1.8'><b style='letter-spacing:2px'>MIMIR&nbsp;REGISTRY</b>&nbsp;&nbsp;·&nbsp;&nbsp;<span style='color:#b88522'>Sepolia&nbsp;·&nbsp;ERC-8004</span>&nbsp;&nbsp;·&nbsp;&nbsp;<code style='color:#e6edf3'>register(digest)</code></div><div style='color:#6e7681;font-size:11px;font-family:ui-monospace,monospace;letter-spacing:1.2px'>EigenLayerSlasherAdapter&nbsp;&nbsp;·&nbsp;&nbsp;AVS&nbsp;mode&nbsp;routes&nbsp;revoke&nbsp;→&nbsp;slash</div><div style='border-top:1px solid #1e3a5f;margin-top:6px;padding-top:6px;font-family:ui-monospace,monospace;font-size:11px;letter-spacing:1px'><span style='color:#8b949e'>EMITS</span>&nbsp;&nbsp;<span style='color:#d4a72c'>anchor(digest,&nbsp;issuer,&nbsp;expiry)</span></div></div>"]
+
+    Verifier["<div style='text-align:center;min-width:940px;line-height:2;padding:4px 8px'><div><span style='font-family:ui-monospace,monospace;color:#8b949e;font-size:11px;letter-spacing:3px'>NODE&nbsp;06&nbsp;·&nbsp;INDEPENDENT&nbsp;CHECK</span></div><div style='line-height:1.8'><b style='letter-spacing:2px'>VERIFIER</b>&nbsp;&nbsp;·&nbsp;&nbsp;<span style='color:#d75952'>Rust&nbsp;/&nbsp;Go&nbsp;/&nbsp;TS</span>&nbsp;&nbsp;·&nbsp;&nbsp;<code style='color:#e6edf3'>spec-only&nbsp;impl</code></div><div style='color:#6e7681;font-size:11px;font-family:ui-monospace,monospace;letter-spacing:1.2px'>recompute&nbsp;C(E)&nbsp;&nbsp;·&nbsp;&nbsp;Ed25519-verify&nbsp;&nbsp;·&nbsp;&nbsp;pick&nbsp;L₁&nbsp;/&nbsp;L₂&nbsp;/&nbsp;L₃</div><div style='border-top:1px solid #1e3a5f;margin-top:6px;padding-top:6px;font-family:ui-monospace,monospace;font-size:11px;letter-spacing:1px'><span style='color:#8b949e'>EMITS</span>&nbsp;&nbsp;<span style='color:#ff7b72'>VALID_k&nbsp;|&nbsp;REJECT&nbsp;→&nbsp;revoke()</span></div></div>"]
+
+    subgraph Legend["<div style='font-family:ui-monospace,monospace;color:#8b949e;font-size:11px;letter-spacing:3px;min-width:940px;text-align:center'>LEGEND&nbsp;&nbsp;·&nbsp;&nbsp;F&nbsp;=&nbsp;signed&nbsp;fields&nbsp;&nbsp;·&nbsp;&nbsp;σ_E&nbsp;=&nbsp;Ed25519&nbsp;signature&nbsp;&nbsp;·&nbsp;&nbsp;C(E)&nbsp;=&nbsp;JCS&nbsp;canonical&nbsp;form&nbsp;&nbsp;·&nbsp;&nbsp;L_k&nbsp;=&nbsp;validation&nbsp;level</div>"]
+        direction LR
+        lg1["<span style='color:#58a6ff'>■</span>&nbsp;&nbsp;invocation"] --- lg2["<span style='color:#bc8cff'>■</span>&nbsp;&nbsp;execution"] --- lg3["<span style='color:#d8853b'>■</span>&nbsp;&nbsp;quality&nbsp;gate"] --- lg4["<span style='color:#3fb950'>■</span>&nbsp;&nbsp;signature"] --- lg5["<span style='color:#b88522'>■</span>&nbsp;&nbsp;settlement"] --- lg6["<span style='color:#d75952'>■</span>&nbsp;&nbsp;verify"]
+    end
+
+    TitleBlock ~~~ Client
+    Client ==>|"GATE · tools/call (JSON-RPC 2.0)"| Server
+    Server ==>|"GATE · σ < 0.75 ∧ S̄ ≥ 9.0 ∧ ⋀ A_j"| Oracle
+    Oracle ==>|"GATE · verdict = DEPLOY"| Issuer
+    Issuer ==>|"GATE · σ_E = Ed25519_sk(C(E))"| Verifier
+    Issuer -.->|"optional · register(digest)"| Chain
+    Verifier -.->|"REJECT · revoke(digest, π)"| Chain
+    Chain ~~~ Legend
+
+    classDef titleBlock fill:#06111f,stroke:#1e3a5f,stroke-width:1px,color:#e6edf3,rx:4,ry:4
+    classDef legend fill:#06111f,stroke:#1e3a5f,stroke-width:1px,color:#8b949e,rx:4,ry:4
+    classDef legendItem fill:#0a1628,stroke:#1e3a5f,stroke-width:0.5px,color:#c9d1d9,rx:4,ry:4
+
+    class TitleBlock titleBlock
+    class Legend legend
+    class lg1,lg2,lg3,lg4,lg5,lg6 legendItem
+
+    style Client   fill:#0f1d33,stroke:#58a6ff,stroke-width:2px,color:#e6edf3,rx:12,ry:12
+    style Server   fill:#0f1d33,stroke:#bc8cff,stroke-width:2px,color:#e6edf3,rx:12,ry:12
+    style Oracle   fill:#0f1d33,stroke:#d8853b,stroke-width:2px,color:#e6edf3,rx:12,ry:12
+    style Issuer   fill:#0f1d33,stroke:#3fb950,stroke-width:2px,color:#e6edf3,rx:12,ry:12
+    style Chain    fill:#0f1d33,stroke:#b88522,stroke-width:2px,color:#e6edf3,rx:12,ry:12
+    style Verifier fill:#0f1d33,stroke:#d75952,stroke-width:2px,color:#e6edf3,rx:12,ry:12
+
+    linkStyle default stroke:#8b949e,stroke-width:1.5px

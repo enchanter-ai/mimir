@@ -1,17 +1,55 @@
-sequenceDiagram
-    participant Disputer
-    participant Registry as MimirValidationRegistry<br/>(ERC-8004 shape)
-    participant Adapter as EigenLayerSlasherAdapter<br/>(restaking-primitive bridge)
-    participant AM as EigenLayer v2<br/>AllocationManager
-    participant Op as Issuer (operator)<br/>restaked stake
+---
+title: Mimir slashing path
+config:
+  look: neo
+  theme: dark
+  flowchart:
+    curve: basis
+    padding: 18
+    nodeSpacing: 44
+    rankSpacing: 50
+    htmlLabels: true
+    subGraphTitleMargin:
+      top: 14
+      bottom: 18
+---
+flowchart TB
+    TitleBlock["<div style='font-family:ui-monospace,SFMono-Regular,Consolas,monospace;text-align:center;min-width:940px;padding:6px 10px;line-height:1.8'><div style='color:#58a6ff;font-size:15px;letter-spacing:6px;border-bottom:1px solid #1e3a5f;padding-bottom:10px;margin-bottom:10px'>MIMIR &nbsp;·&nbsp; FRAUD-PROOF&nbsp;SLASHING &nbsp;·&nbsp; CALL&nbsp;PATH</div><div style='display:flex;gap:40px;justify-content:center;font-size:11px;color:#8b949e;letter-spacing:2px'><span>DWG&nbsp;&nbsp;<b style='color:#e6edf3'>MMR-003</b></span><span>REV&nbsp;&nbsp;<b style='color:#e6edf3'>A.1</b></span><span>SCALE&nbsp;&nbsp;<b style='color:#e6edf3'>1:1</b></span><span>HOPS&nbsp;&nbsp;<b style='color:#e6edf3'>n&nbsp;=&nbsp;5</b></span><span>SHEET&nbsp;&nbsp;<b style='color:#e6edf3'>01&nbsp;/&nbsp;01</b></span></div></div>"]
 
-    Disputer->>Registry: revoke(digest, fraud_proof)
-    Registry->>Registry: verify proof
-    Registry->>Registry: emit Revoked(digest, reasonHash)
-    Registry->>Adapter: slasher.slash(operator,<br/>wadSlashed, reasonHash)
-    Adapter->>Adapter: build SlashingParams{<br/>operator, operatorSetId,<br/>strategies[], wads[],<br/>description=hex(reasonHash)}
-    Adapter->>AM: AllocationManager.slash(params)
-    AM->>Op: reduce restaked allocation
-    AM-->>Adapter: slashed
-    Adapter-->>Registry: ok
-    Note over Disputer,Op: 4/4 SlashingParams fields<br/>verified on-chain (Sepolia)
+    Disputer["<div style='text-align:center;min-width:940px;line-height:2;padding:4px 8px'><div><span style='font-family:ui-monospace,monospace;color:#8b949e;font-size:11px;letter-spacing:3px'>HOP&nbsp;01&nbsp;·&nbsp;DISPUTE</span></div><div style='line-height:1.8'><b style='letter-spacing:2px'>DISPUTER</b>&nbsp;&nbsp;·&nbsp;&nbsp;<span style='color:#58a6ff'>any&nbsp;party&nbsp;with&nbsp;a&nbsp;valid&nbsp;π</span></div><div style='color:#6e7681;font-size:11px;font-family:ui-monospace,monospace;letter-spacing:1.2px'>fraud&nbsp;proof&nbsp;π&nbsp;over&nbsp;a&nbsp;registered&nbsp;envelope&nbsp;E</div><div style='border-top:1px solid #1e3a5f;margin-top:6px;padding-top:6px;font-family:ui-monospace,monospace;font-size:11px;letter-spacing:1px'><span style='color:#8b949e'>EMITS</span>&nbsp;&nbsp;<span style='color:#79c0ff'>revoke(digest,&nbsp;π)</span></div></div>"]
+
+    Registry["<div style='text-align:center;min-width:940px;line-height:2;padding:4px 8px'><div><span style='font-family:ui-monospace,monospace;color:#8b949e;font-size:11px;letter-spacing:3px'>HOP&nbsp;02&nbsp;·&nbsp;ANCHOR</span></div><div style='line-height:1.8'><b style='letter-spacing:2px'>MimirValidationRegistry</b>&nbsp;&nbsp;·&nbsp;&nbsp;<span style='color:#b88522'>ERC-8004&nbsp;shape</span>&nbsp;&nbsp;·&nbsp;&nbsp;<code style='color:#e6edf3'>Sepolia</code></div><div style='color:#6e7681;font-size:11px;font-family:ui-monospace,monospace;letter-spacing:1.2px'>verify&nbsp;π&nbsp;&nbsp;·&nbsp;&nbsp;emit&nbsp;Revoked(digest,&nbsp;reasonHash)&nbsp;&nbsp;·&nbsp;&nbsp;dispatch&nbsp;ISlasher</div><div style='border-top:1px solid #1e3a5f;margin-top:6px;padding-top:6px;font-family:ui-monospace,monospace;font-size:11px;letter-spacing:1px'><span style='color:#8b949e'>EMITS</span>&nbsp;&nbsp;<span style='color:#d4a72c'>slasher.slash(op,&nbsp;w_slashed,&nbsp;reasonHash)</span></div></div>"]
+
+    Adapter["<div style='text-align:center;min-width:940px;line-height:2;padding:4px 8px'><div><span style='font-family:ui-monospace,monospace;color:#8b949e;font-size:11px;letter-spacing:3px'>HOP&nbsp;03&nbsp;·&nbsp;BRIDGE</span></div><div style='line-height:1.8'><b style='letter-spacing:2px'>EigenLayerSlasherAdapter</b>&nbsp;&nbsp;·&nbsp;&nbsp;<span style='color:#bc8cff'>narrow&nbsp;ISlasher&nbsp;→&nbsp;EL&nbsp;v2&nbsp;ABI</span></div><div style='color:#6e7681;font-size:11px;font-family:ui-monospace,monospace;letter-spacing:1.2px'>build&nbsp;SlashingParams{op,&nbsp;operatorSetId,&nbsp;strategies[],&nbsp;wads[],&nbsp;hex(reasonHash)}</div><div style='border-top:1px solid #1e3a5f;margin-top:6px;padding-top:6px;font-family:ui-monospace,monospace;font-size:11px;letter-spacing:1px'><span style='color:#8b949e'>EMITS</span>&nbsp;&nbsp;<span style='color:#d2a8ff'>AllocationManager.slash(params)</span></div></div>"]
+
+    AM["<div style='text-align:center;min-width:940px;line-height:2;padding:4px 8px'><div><span style='font-family:ui-monospace,monospace;color:#8b949e;font-size:11px;letter-spacing:3px'>HOP&nbsp;04&nbsp;·&nbsp;ENFORCE</span></div><div style='line-height:1.8'><b style='letter-spacing:2px'>EigenLayer&nbsp;v2&nbsp;AllocationManager</b>&nbsp;&nbsp;·&nbsp;&nbsp;<span style='color:#3fb950'>restaking&nbsp;primitive</span></div><div style='color:#6e7681;font-size:11px;font-family:ui-monospace,monospace;letter-spacing:1.2px'>validate&nbsp;operatorSet&nbsp;·&nbsp;apply&nbsp;w_slashed&nbsp;uniformly&nbsp;across&nbsp;strategies</div><div style='border-top:1px solid #1e3a5f;margin-top:6px;padding-top:6px;font-family:ui-monospace,monospace;font-size:11px;letter-spacing:1px'><span style='color:#8b949e'>EMITS</span>&nbsp;&nbsp;<span style='color:#7ee787'>OperatorSlashed&nbsp;event</span></div></div>"]
+
+    Op["<div style='text-align:center;min-width:940px;line-height:2;padding:4px 8px'><div><span style='font-family:ui-monospace,monospace;color:#8b949e;font-size:11px;letter-spacing:3px'>HOP&nbsp;05&nbsp;·&nbsp;CONSEQUENCE</span></div><div style='line-height:1.8'><b style='letter-spacing:2px'>ISSUER&nbsp;OPERATOR</b>&nbsp;&nbsp;·&nbsp;&nbsp;<span style='color:#d75952'>restaked&nbsp;stake&nbsp;reduced</span></div><div style='color:#6e7681;font-size:11px;font-family:ui-monospace,monospace;letter-spacing:1.2px'>Δstake&nbsp;=&nbsp;−|strategies|&nbsp;·&nbsp;w_slashed&nbsp;&nbsp;·&nbsp;&nbsp;w_slashed&nbsp;∈&nbsp;[0,&nbsp;10¹⁸]</div><div style='border-top:1px solid #1e3a5f;margin-top:6px;padding-top:6px;font-family:ui-monospace,monospace;font-size:11px;letter-spacing:1px'><span style='color:#8b949e'>RESULT</span>&nbsp;&nbsp;<span style='color:#ff7b72'>economic&nbsp;finality&nbsp;on&nbsp;the&nbsp;envelope</span></div></div>"]
+
+    subgraph Legend["<div style='font-family:ui-monospace,monospace;color:#8b949e;font-size:11px;letter-spacing:3px;min-width:940px;text-align:center'>LEGEND&nbsp;&nbsp;·&nbsp;&nbsp;π&nbsp;=&nbsp;fraud&nbsp;proof&nbsp;&nbsp;·&nbsp;&nbsp;w_slashed&nbsp;=&nbsp;wad&nbsp;per&nbsp;strategy&nbsp;&nbsp;·&nbsp;&nbsp;Δstake&nbsp;=&nbsp;allocation&nbsp;reduction&nbsp;&nbsp;·&nbsp;&nbsp;4/4&nbsp;SlashingParams&nbsp;fields&nbsp;verified&nbsp;on-chain</div>"]
+        direction LR
+        lg1["<span style='color:#58a6ff'>■</span>&nbsp;&nbsp;dispute"] --- lg2["<span style='color:#b88522'>■</span>&nbsp;&nbsp;anchor"] --- lg3["<span style='color:#bc8cff'>■</span>&nbsp;&nbsp;bridge"] --- lg4["<span style='color:#3fb950'>■</span>&nbsp;&nbsp;enforce"] --- lg5["<span style='color:#d75952'>■</span>&nbsp;&nbsp;consequence"]
+    end
+
+    TitleBlock ~~~ Disputer
+    Disputer ==>|"GATE · proof π well-formed"| Registry
+    Registry ==>|"GATE · registered(digest) ∧ stake(op) > 0"| Adapter
+    Adapter ==>|"GATE · uniform wads ∧ w ≤ 10¹⁸"| AM
+    AM ==>|"GATE · operatorSet ∋ op"| Op
+    Op ~~~ Legend
+
+    classDef titleBlock fill:#06111f,stroke:#1e3a5f,stroke-width:1px,color:#e6edf3,rx:4,ry:4
+    classDef legend fill:#06111f,stroke:#1e3a5f,stroke-width:1px,color:#8b949e,rx:4,ry:4
+    classDef legendItem fill:#0a1628,stroke:#1e3a5f,stroke-width:0.5px,color:#c9d1d9,rx:4,ry:4
+
+    class TitleBlock titleBlock
+    class Legend legend
+    class lg1,lg2,lg3,lg4,lg5 legendItem
+
+    style Disputer fill:#0f1d33,stroke:#58a6ff,stroke-width:2px,color:#e6edf3,rx:12,ry:12
+    style Registry fill:#0f1d33,stroke:#b88522,stroke-width:2px,color:#e6edf3,rx:12,ry:12
+    style Adapter  fill:#0f1d33,stroke:#bc8cff,stroke-width:2px,color:#e6edf3,rx:12,ry:12
+    style AM       fill:#0f1d33,stroke:#3fb950,stroke-width:2px,color:#e6edf3,rx:12,ry:12
+    style Op       fill:#0f1d33,stroke:#d75952,stroke-width:2px,color:#e6edf3,rx:12,ry:12
+
+    linkStyle default stroke:#8b949e,stroke-width:1.5px

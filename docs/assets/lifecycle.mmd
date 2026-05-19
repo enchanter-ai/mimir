@@ -1,25 +1,67 @@
+---
+title: Mimir provenance lifecycle
+config:
+  look: neo
+  theme: dark
+  flowchart:
+    curve: basis
+    padding: 18
+    nodeSpacing: 44
+    rankSpacing: 50
+    htmlLabels: true
+    subGraphTitleMargin:
+      top: 14
+      bottom: 18
+---
 flowchart TB
-    classDef call    fill:#1f6feb,stroke:#1f6feb,color:#fff
-    classDef score   fill:#f0883e,stroke:#f0883e,color:#000
-    classDef sign    fill:#3fb950,stroke:#3fb950,color:#000
-    classDef anchor  fill:#d29922,stroke:#d29922,color:#000
-    classDef dispute fill:#f85149,stroke:#f85149,color:#fff
-    classDef verify  fill:#58a6ff,stroke:#58a6ff,color:#000
+    TitleBlock["<div style='font-family:ui-monospace,SFMono-Regular,Consolas,monospace;text-align:center;min-width:940px;padding:6px 10px;line-height:1.8'><div style='color:#58a6ff;font-size:15px;letter-spacing:6px;border-bottom:1px solid #1e3a5f;padding-bottom:10px;margin-bottom:10px'>MIMIR &nbsp;·&nbsp; TOOL-CALL&nbsp;PROVENANCE &nbsp;·&nbsp; LIFECYCLE&nbsp;DIAGRAM</div><div style='display:flex;gap:40px;justify-content:center;font-size:11px;color:#8b949e;letter-spacing:2px'><span>DWG&nbsp;&nbsp;<b style='color:#e6edf3'>MMR-002</b></span><span>REV&nbsp;&nbsp;<b style='color:#e6edf3'>A.1</b></span><span>SCALE&nbsp;&nbsp;<b style='color:#e6edf3'>1:1</b></span><span>STAGES&nbsp;&nbsp;<b style='color:#e6edf3'>n&nbsp;=&nbsp;8</b></span><span>SHEET&nbsp;&nbsp;<b style='color:#e6edf3'>01&nbsp;/&nbsp;01</b></span></div></div>"]
 
-    S1["1. MCP tools/call<br/>JSON-RPC 2.0"]:::call
-    S2["2. Tool executes<br/>raw result returned"]:::call
-    S3["3. POST /v1/score<br/>scoring oracle σ-bound"]:::score
-    S4{"DEPLOY?"}
-    S5["4. POST /v1/attest-mcp<br/>JCS canon + Ed25519 sign"]:::sign
-    S6["5. Client receives<br/>(result, envelope)"]:::call
-    S7["6. registry.register(digest)<br/>optional anchor"]:::anchor
-    S8["7. revoke(digest, proof)<br/>fraud dispute → slash"]:::dispute
-    S9["8. Independent verifier<br/>spec-only re-implementation"]:::verify
+    S1["<div style='text-align:center;min-width:940px;line-height:2;padding:4px 8px'><div><span style='font-family:ui-monospace,monospace;color:#8b949e;font-size:11px;letter-spacing:3px'>STAGE&nbsp;01&nbsp;·&nbsp;INVOCATION</span></div><div style='line-height:1.8'><b style='letter-spacing:2px'>MCP&nbsp;tools/call</b>&nbsp;&nbsp;·&nbsp;&nbsp;<span style='color:#58a6ff'>JSON-RPC&nbsp;2.0</span></div><div style='color:#6e7681;font-size:11px;font-family:ui-monospace,monospace;letter-spacing:1.2px'>client&nbsp;identity&nbsp;via&nbsp;DPoP&nbsp;(RFC&nbsp;9449)&nbsp;&nbsp;·&nbsp;&nbsp;τ&nbsp;≈&nbsp;10&nbsp;ms</div><div style='border-top:1px solid #1e3a5f;margin-top:6px;padding-top:6px;font-family:ui-monospace,monospace;font-size:11px;letter-spacing:1px'><span style='color:#8b949e'>EMITS</span>&nbsp;&nbsp;<span style='color:#79c0ff'>invoked_by&nbsp;·&nbsp;invoked_at</span></div></div>"]
 
-    S1 --> S2 --> S3 --> S4
-    S4 -- "yes" --> S5
-    S4 -- "no" --> X["HOLD / FAIL<br/>no envelope issued"]
-    S5 --> S6
-    S6 --> S7
-    S7 -. "anyone, anytime" .-> S8
-    S6 -. "anyone, anytime" .-> S9
+    S2["<div style='text-align:center;min-width:940px;line-height:2;padding:4px 8px'><div><span style='font-family:ui-monospace,monospace;color:#8b949e;font-size:11px;letter-spacing:3px'>STAGE&nbsp;02&nbsp;·&nbsp;EXECUTION</span></div><div style='line-height:1.8'><b style='letter-spacing:2px'>TOOL&nbsp;RUNS</b>&nbsp;&nbsp;·&nbsp;&nbsp;<span style='color:#58a6ff'>raw&nbsp;result&nbsp;+&nbsp;sources</span></div><div style='color:#6e7681;font-size:11px;font-family:ui-monospace,monospace;letter-spacing:1.2px'>tool_id&nbsp;·&nbsp;tool_version&nbsp;·&nbsp;sources[]&nbsp;collected&nbsp;at&nbsp;the&nbsp;edge</div><div style='border-top:1px solid #1e3a5f;margin-top:6px;padding-top:6px;font-family:ui-monospace,monospace;font-size:11px;letter-spacing:1px'><span style='color:#8b949e'>EMITS</span>&nbsp;&nbsp;<span style='color:#79c0ff'>(request,&nbsp;result,&nbsp;sources)</span></div></div>"]
+
+    S3["<div style='text-align:center;min-width:940px;line-height:2;padding:4px 8px'><div><span style='font-family:ui-monospace,monospace;color:#8b949e;font-size:11px;letter-spacing:3px'>STAGE&nbsp;03&nbsp;·&nbsp;QUALITY&nbsp;ORACLE</span></div><div style='line-height:1.8'><b style='letter-spacing:2px'>SCORING</b>&nbsp;&nbsp;·&nbsp;&nbsp;<span style='color:#d8853b'>Claude&nbsp;Sonnet&nbsp;4.6</span>&nbsp;&nbsp;·&nbsp;&nbsp;<code style='color:#e6edf3'>POST&nbsp;/v1/score</code></div><div style='color:#6e7681;font-size:11px;font-family:ui-monospace,monospace;letter-spacing:1.2px'>σ&nbsp;<&nbsp;0.75&nbsp;&nbsp;·&nbsp;&nbsp;S̄&nbsp;≥&nbsp;9.0&nbsp;&nbsp;·&nbsp;&nbsp;∀&nbsp;axis&nbsp;≥&nbsp;7.0&nbsp;&nbsp;·&nbsp;&nbsp;⋀&nbsp;A_j(R)</div><div style='border-top:1px solid #1e3a5f;margin-top:6px;padding-top:6px;font-family:ui-monospace,monospace;font-size:11px;letter-spacing:1px'><span style='color:#8b949e'>EMITS</span>&nbsp;&nbsp;<span style='color:#ffa657'>verdict&nbsp;·&nbsp;axis&nbsp;scores&nbsp;·&nbsp;σ</span></div></div>"]
+
+    S5["<div style='text-align:center;min-width:940px;line-height:2;padding:4px 8px'><div><span style='font-family:ui-monospace,monospace;color:#8b949e;font-size:11px;letter-spacing:3px'>STAGE&nbsp;04&nbsp;·&nbsp;SIGN</span></div><div style='line-height:1.8'><b style='letter-spacing:2px'>ATTEST</b>&nbsp;&nbsp;·&nbsp;&nbsp;<span style='color:#3fb950'>AWS&nbsp;KMS&nbsp;·&nbsp;Ed25519</span>&nbsp;&nbsp;·&nbsp;&nbsp;<code style='color:#e6edf3'>POST&nbsp;/v1/attest-mcp</code></div><div style='color:#6e7681;font-size:11px;font-family:ui-monospace,monospace;letter-spacing:1.2px'>JCS&nbsp;RFC&nbsp;8785&nbsp;→&nbsp;SHA-256&nbsp;→&nbsp;Ed25519&nbsp;&nbsp;·&nbsp;&nbsp;97–112&nbsp;ms&nbsp;p50</div><div style='border-top:1px solid #1e3a5f;margin-top:6px;padding-top:6px;font-family:ui-monospace,monospace;font-size:11px;letter-spacing:1px'><span style='color:#8b949e'>EMITS</span>&nbsp;&nbsp;<span style='color:#7ee787'>σ_E&nbsp;over&nbsp;C(E)</span></div></div>"]
+
+    S6["<div style='text-align:center;min-width:940px;line-height:2;padding:4px 8px'><div><span style='font-family:ui-monospace,monospace;color:#8b949e;font-size:11px;letter-spacing:3px'>STAGE&nbsp;05&nbsp;·&nbsp;RETURN</span></div><div style='line-height:1.8'><b style='letter-spacing:2px'>CLIENT&nbsp;RECEIVES</b>&nbsp;&nbsp;·&nbsp;&nbsp;<span style='color:#58a6ff'>(result,&nbsp;envelope)</span></div><div style='color:#6e7681;font-size:11px;font-family:ui-monospace,monospace;letter-spacing:1.2px'>downstream&nbsp;consumers&nbsp;may&nbsp;verify&nbsp;at&nbsp;L₁&nbsp;/&nbsp;L₂&nbsp;/&nbsp;L₃</div><div style='border-top:1px solid #1e3a5f;margin-top:6px;padding-top:6px;font-family:ui-monospace,monospace;font-size:11px;letter-spacing:1px'><span style='color:#8b949e'>EMITS</span>&nbsp;&nbsp;<span style='color:#79c0ff'>envelope&nbsp;E&nbsp;ready&nbsp;to&nbsp;ship</span></div></div>"]
+
+    S7["<div style='text-align:center;min-width:940px;line-height:2;padding:4px 8px'><div><span style='font-family:ui-monospace,monospace;color:#8b949e;font-size:11px;letter-spacing:3px'>STAGE&nbsp;06&nbsp;·&nbsp;ANCHOR&nbsp;(OPTIONAL)</span></div><div style='line-height:1.8'><b style='letter-spacing:2px'>REGISTER</b>&nbsp;&nbsp;·&nbsp;&nbsp;<span style='color:#b88522'>Sepolia&nbsp;·&nbsp;ERC-8004</span>&nbsp;&nbsp;·&nbsp;&nbsp;<code style='color:#e6edf3'>registry.register(digest)</code></div><div style='color:#6e7681;font-size:11px;font-family:ui-monospace,monospace;letter-spacing:1.2px'>MimirValidationRegistry&nbsp;0xEbdAa5a9…4117&nbsp;&nbsp;·&nbsp;&nbsp;τ&nbsp;≈&nbsp;15&nbsp;s</div><div style='border-top:1px solid #1e3a5f;margin-top:6px;padding-top:6px;font-family:ui-monospace,monospace;font-size:11px;letter-spacing:1px'><span style='color:#8b949e'>EMITS</span>&nbsp;&nbsp;<span style='color:#d4a72c'>Registered(digest,&nbsp;issuer,&nbsp;expiry)</span></div></div>"]
+
+    S8["<div style='text-align:center;min-width:940px;line-height:2;padding:4px 8px'><div><span style='font-family:ui-monospace,monospace;color:#8b949e;font-size:11px;letter-spacing:3px'>STAGE&nbsp;07&nbsp;·&nbsp;FRAUD&nbsp;DISPUTE&nbsp;(OPTIONAL)</span></div><div style='line-height:1.8'><b style='letter-spacing:2px'>REVOKE&nbsp;+&nbsp;SLASH</b>&nbsp;&nbsp;·&nbsp;&nbsp;<span style='color:#d75952'>EigenLayerSlasherAdapter</span>&nbsp;&nbsp;·&nbsp;&nbsp;<code style='color:#e6edf3'>revoke(digest,&nbsp;π)</code></div><div style='color:#6e7681;font-size:11px;font-family:ui-monospace,monospace;letter-spacing:1.2px'>AllocationManager.slash(SlashingParams)&nbsp;&nbsp;·&nbsp;&nbsp;Δstake&nbsp;=&nbsp;−|strategies|·w_slashed</div><div style='border-top:1px solid #1e3a5f;margin-top:6px;padding-top:6px;font-family:ui-monospace,monospace;font-size:11px;letter-spacing:1px'><span style='color:#8b949e'>EMITS</span>&nbsp;&nbsp;<span style='color:#ff7b72'>Revoked(digest,&nbsp;reasonHash)</span></div></div>"]
+
+    S9["<div style='text-align:center;min-width:940px;line-height:2;padding:4px 8px'><div><span style='font-family:ui-monospace,monospace;color:#8b949e;font-size:11px;letter-spacing:3px'>STAGE&nbsp;08&nbsp;·&nbsp;INDEPENDENT&nbsp;VERIFY</span></div><div style='line-height:1.8'><b style='letter-spacing:2px'>CROSS-IMPL</b>&nbsp;&nbsp;·&nbsp;&nbsp;<span style='color:#bc8cff'>Rust&nbsp;6/6&nbsp;·&nbsp;TS&nbsp;·&nbsp;Go</span></div><div style='color:#6e7681;font-size:11px;font-family:ui-monospace,monospace;letter-spacing:1.2px'>parity:&nbsp;V₁(E)&nbsp;=&nbsp;V₂(E)&nbsp;=&nbsp;V₃(E)&nbsp;&nbsp;·&nbsp;&nbsp;Ω&nbsp;=&nbsp;14/14&nbsp;adversarial</div><div style='border-top:1px solid #1e3a5f;margin-top:6px;padding-top:6px;font-family:ui-monospace,monospace;font-size:11px;letter-spacing:1px'><span style='color:#8b949e'>EMITS</span>&nbsp;&nbsp;<span style='color:#d2a8ff'>VALID_k&nbsp;|&nbsp;REJECT</span></div></div>"]
+
+    subgraph Legend["<div style='font-family:ui-monospace,monospace;color:#8b949e;font-size:11px;letter-spacing:3px;min-width:940px;text-align:center'>LEGEND&nbsp;&nbsp;·&nbsp;&nbsp;GATE&nbsp;NOTATION&nbsp;&nbsp;·&nbsp;&nbsp;σ&nbsp;=&nbsp;axis&nbsp;dispersion&nbsp;&nbsp;·&nbsp;&nbsp;σ_E&nbsp;=&nbsp;Ed25519&nbsp;sig&nbsp;&nbsp;·&nbsp;&nbsp;π&nbsp;=&nbsp;fraud&nbsp;proof&nbsp;&nbsp;·&nbsp;&nbsp;Δstake&nbsp;=&nbsp;slashed&nbsp;wad</div>"]
+        direction LR
+        lg1["<span style='color:#58a6ff'>■</span>&nbsp;&nbsp;invocation"] --- lg2["<span style='color:#d8853b'>■</span>&nbsp;&nbsp;quality"] --- lg3["<span style='color:#3fb950'>■</span>&nbsp;&nbsp;sign"] --- lg4["<span style='color:#b88522'>■</span>&nbsp;&nbsp;anchor"] --- lg5["<span style='color:#d75952'>■</span>&nbsp;&nbsp;dispute"] --- lg6["<span style='color:#bc8cff'>■</span>&nbsp;&nbsp;verify"]
+    end
+
+    TitleBlock ~~~ S1
+    S1 ==>|"GATE · JSON-RPC well-formed"| S2
+    S2 ==>|"GATE · tool returns non-empty"| S3
+    S3 ==>|"GATE · verdict = DEPLOY"| S5
+    S5 ==>|"GATE · σ_E = Ed25519_sk(C(E))"| S6
+    S6 -.->|"optional · register(digest)"| S7
+    S7 -.->|"optional · slash on fraud"| S8
+    S6 ==>|"available to any consumer"| S9
+    S9 ~~~ Legend
+
+    classDef titleBlock fill:#06111f,stroke:#1e3a5f,stroke-width:1px,color:#e6edf3,rx:4,ry:4
+    classDef legend fill:#06111f,stroke:#1e3a5f,stroke-width:1px,color:#8b949e,rx:4,ry:4
+    classDef legendItem fill:#0a1628,stroke:#1e3a5f,stroke-width:0.5px,color:#c9d1d9,rx:4,ry:4
+
+    class TitleBlock titleBlock
+    class Legend legend
+    class lg1,lg2,lg3,lg4,lg5,lg6 legendItem
+
+    style S1 fill:#0f1d33,stroke:#58a6ff,stroke-width:2px,color:#e6edf3,rx:12,ry:12
+    style S2 fill:#0f1d33,stroke:#58a6ff,stroke-width:2px,color:#e6edf3,rx:12,ry:12
+    style S3 fill:#0f1d33,stroke:#d8853b,stroke-width:2px,color:#e6edf3,rx:12,ry:12
+    style S5 fill:#0f1d33,stroke:#3fb950,stroke-width:2px,color:#e6edf3,rx:12,ry:12
+    style S6 fill:#0f1d33,stroke:#3fb950,stroke-width:2px,color:#e6edf3,rx:12,ry:12
+    style S7 fill:#0f1d33,stroke:#b88522,stroke-width:2px,color:#e6edf3,rx:12,ry:12
+    style S8 fill:#0f1d33,stroke:#d75952,stroke-width:2px,color:#e6edf3,rx:12,ry:12
+    style S9 fill:#0f1d33,stroke:#bc8cff,stroke-width:2px,color:#e6edf3,rx:12,ry:12
+
+    linkStyle default stroke:#8b949e,stroke-width:1.5px
