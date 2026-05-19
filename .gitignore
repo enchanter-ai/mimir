@@ -56,3 +56,6 @@ bench/bench.exe
 
 # Logs
 *.log
+
+# docs/assets render toolchain (mermaid-cli, puppeteer)
+docs/assets/package-lock.json

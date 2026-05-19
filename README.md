@@ -42,7 +42,13 @@ Three failures, in roughly the order they kept happening, became the reason Mimi
 
 Mimir is the receipt for those three failures: one Ed25519 signature over the whole tool-call context, three explicit validation levels (well-formed / cryptographically-valid / trust-anchored), an on-chain anchor that routes accepted fraud proofs to a real EigenLayer slash on the issuer's restaked allocation. The full call path is proven live on Sepolia — not narrative, not whitepaper, four contracts and a working slash.
 
-Named after the Norse well of wisdom whose price was Odin's eye: knowledge worth preserving has to cost something to fabricate. The name came after the design, not before — the design came from the three failures above.
+### Why "Mimir"
+
+**Mimir** takes its name from **Norse cosmology** — the giant who guarded the Well of Wisdom at one of the three roots of Yggdrasil. The well preserved every memory the cosmos ever held; to drink from it, the All-Father Odin gave up an eye. Knowledge worth preserving had to cost something to fabricate. When the giant himself was beheaded in the Æsir-Vanir war, Odin embalmed Mimir's head with herbs and carried it as a counselor: a *queryable memory* that could be asked, after the fact, what really happened.
+
+That is, almost literally, what this project does. Every MCP tool call gets a Mimir-head — a sealed, queryable record of what the agent asked, what the tool returned, and which sources backed the answer. The "knowledge has to cost something to fabricate" part is encoded in the restaked stake the issuer puts up: an issuer who signs a lying envelope loses real allocation when the fraud proof lands. The well is on-chain (Sepolia today); the embalming is RFC 8785 + Ed25519; the cost of fabrication is denominated in EigenLayer wads.
+
+The name came after the design, not before — the design came from the three failures above; the giant came after, when the design needed a one-word handle for the thing it was building.
 
 The question this project answers: *what did the agent actually do, and what does it cost the issuer if the answer was a lie?*
 
@@ -96,82 +102,19 @@ Not for:
 
 Mimir is not a single service — it's a four-process pipeline plus an on-chain anchor. A user invokes an MCP tool through Claude Desktop / Cursor / Cline. Your MCP server runs the tool, gets the raw result, ships `(request, result)` to a **scoring oracle** (Claude Sonnet 4.6, σ-bound across 5 axes and 8 SAT assertions). If — and only if — the verdict is DEPLOY, the server posts to the **issuer**, which canonicalizes the envelope per RFC 8785, computes SHA-256 digests over the request and result, and signs the whole canonical form with Ed25519 via AWS KMS. The signed envelope goes back to the MCP client alongside the result. An **independent verifier** (Rust, TS, Go, or anything that can do JCS + Ed25519) can recompute the canonical form and check the signature against the published JWK. An optional on-chain step calls `MimirValidationRegistry.register(digest)` so the envelope is globally referenceable; an optional fraud-dispute step calls `revoke(digest, proof)` which routes through `EigenLayerSlasherAdapter` to a real EigenLayer v2 `AllocationManager.slash(SlashingParams)`, reducing the issuer's restaked allocation.
 
-```mermaid
----
-title: Mimir envelope flow
-config:
-  look: neo
-  theme: dark
-  themeVariables:
-    background: '#0a1628'
-    primaryColor: '#0f1d33'
-    primaryTextColor: '#e6edf3'
-    primaryBorderColor: '#1e3a5f'
-    lineColor: '#8b949e'
-    secondaryColor: '#0f1d33'
-    tertiaryColor: '#0a1628'
-    mainBkg: '#0a1628'
-    clusterBkg: '#06111f'
-    clusterBorder: '#1e3a5f'
-    fontFamily: '-apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif'
-  flowchart:
-    curve: basis
-    padding: 18
-    nodeSpacing: 44
-    rankSpacing: 50
-    htmlLabels: true
-    subGraphTitleMargin:
-      top: 14
-      bottom: 18
----
-flowchart TB
-    TitleBlock["<div style='font-family:ui-monospace,SFMono-Regular,Consolas,monospace;text-align:center;min-width:940px;padding:6px 10px;line-height:1.8'><div style='color:#58a6ff;font-size:15px;letter-spacing:6px;border-bottom:1px solid #1e3a5f;padding-bottom:10px;margin-bottom:10px'>MIMIR &nbsp;·&nbsp; ENVELOPE&nbsp;FLOW &nbsp;·&nbsp; PIPELINE&nbsp;DIAGRAM</div><div style='display:flex;gap:40px;justify-content:center;font-size:11px;color:#8b949e;letter-spacing:2px'><span>DWG&nbsp;&nbsp;<b style='color:#e6edf3'>MMR-001</b></span><span>REV&nbsp;&nbsp;<b style='color:#e6edf3'>A.1</b></span><span>SCALE&nbsp;&nbsp;<b style='color:#e6edf3'>1:1</b></span><span>STAGES&nbsp;&nbsp;<b style='color:#e6edf3'>n&nbsp;=&nbsp;6</b></span><span>SHEET&nbsp;&nbsp;<b style='color:#e6edf3'>01&nbsp;/&nbsp;01</b></span></div></div>"]
+<p align="center">
+  <a href="docs/assets/envelope-flow.mmd" title="View envelope-flow source (Mermaid)">
+    <img src="docs/assets/envelope-flow.svg"
+         alt="Mimir envelope flow blueprint — 6 nodes: MCP client (invocation) → MCP server (execution) → scoring oracle (quality gate) → Mimir issuer (Ed25519 sign via AWS KMS) → on-chain registry (optional settlement) → independent verifier (Rust/Go/TS), with GATE notation per edge"
+         width="100%" style="max-width: 1100px;">
+  </a>
+</p>
 
-    Client["<div style='text-align:center;min-width:940px;line-height:2;padding:4px 8px'><div><span style='font-family:ui-monospace,monospace;color:#8b949e;font-size:11px;letter-spacing:3px'>NODE&nbsp;01&nbsp;·&nbsp;INVOCATION</span></div><div style='line-height:1.8'><b style='letter-spacing:2px'>MCP&nbsp;CLIENT</b>&nbsp;&nbsp;·&nbsp;&nbsp;<span style='color:#58a6ff'>Claude&nbsp;Desktop&nbsp;/&nbsp;Cursor&nbsp;/&nbsp;Cline</span></div><div style='color:#6e7681;font-size:11px;font-family:ui-monospace,monospace;letter-spacing:1.2px'>JSON-RPC&nbsp;2.0&nbsp;&nbsp;·&nbsp;&nbsp;tools/call&nbsp;&nbsp;·&nbsp;&nbsp;client_identity_proof&nbsp;(DPoP)</div><div style='border-top:1px solid #1e3a5f;margin-top:6px;padding-top:6px;font-family:ui-monospace,monospace;font-size:11px;letter-spacing:1px'><span style='color:#8b949e'>EMITS</span>&nbsp;&nbsp;<span style='color:#79c0ff'>request&nbsp;+&nbsp;invoked_by</span></div></div>"]
+<sub align="center">
 
-    Server["<div style='text-align:center;min-width:940px;line-height:2;padding:4px 8px'><div><span style='font-family:ui-monospace,monospace;color:#8b949e;font-size:11px;letter-spacing:3px'>NODE&nbsp;02&nbsp;·&nbsp;EXECUTION</span></div><div style='line-height:1.8'><b style='letter-spacing:2px'>MCP&nbsp;SERVER</b>&nbsp;&nbsp;·&nbsp;&nbsp;<span style='color:#bc8cff'>forks&nbsp;mcp-server-starter</span></div><div style='color:#6e7681;font-size:11px;font-family:ui-monospace,monospace;letter-spacing:1.2px'>tool&nbsp;runs&nbsp;&nbsp;·&nbsp;&nbsp;collects&nbsp;sources[]&nbsp;&nbsp;·&nbsp;&nbsp;orchestrates&nbsp;oracle&nbsp;+&nbsp;issuer</div><div style='border-top:1px solid #1e3a5f;margin-top:6px;padding-top:6px;font-family:ui-monospace,monospace;font-size:11px;letter-spacing:1px'><span style='color:#8b949e'>EMITS</span>&nbsp;&nbsp;<span style='color:#d2a8ff'>(request,&nbsp;result,&nbsp;sources)</span></div></div>"]
+Source: [docs/assets/envelope-flow.mmd](docs/assets/envelope-flow.mmd) · Regeneration command in [docs/assets/README.md](docs/assets/README.md).
 
-    Oracle["<div style='text-align:center;min-width:940px;line-height:2;padding:4px 8px'><div><span style='font-family:ui-monospace,monospace;color:#8b949e;font-size:11px;letter-spacing:3px'>NODE&nbsp;03&nbsp;·&nbsp;QUALITY&nbsp;GATE</span></div><div style='line-height:1.8'><b style='letter-spacing:2px'>SCORING&nbsp;ORACLE</b>&nbsp;&nbsp;·&nbsp;&nbsp;<span style='color:#d8853b'>Claude&nbsp;Sonnet&nbsp;4.6</span>&nbsp;&nbsp;·&nbsp;&nbsp;<code style='color:#e6edf3'>POST&nbsp;/v1/score</code></div><div style='color:#6e7681;font-size:11px;font-family:ui-monospace,monospace;letter-spacing:1.2px'>5&nbsp;axes&nbsp;·&nbsp;8&nbsp;SAT&nbsp;assertions&nbsp;·&nbsp;σ&nbsp;<&nbsp;0.75&nbsp;·&nbsp;∀&nbsp;axis&nbsp;≥&nbsp;7.0</div><div style='border-top:1px solid #1e3a5f;margin-top:6px;padding-top:6px;font-family:ui-monospace,monospace;font-size:11px;letter-spacing:1px'><span style='color:#8b949e'>EMITS</span>&nbsp;&nbsp;<span style='color:#ffa657'>DEPLOY&nbsp;|&nbsp;HOLD&nbsp;|&nbsp;FAIL</span></div></div>"]
-
-    Issuer["<div style='text-align:center;min-width:940px;line-height:2;padding:4px 8px'><div><span style='font-family:ui-monospace,monospace;color:#8b949e;font-size:11px;letter-spacing:3px'>NODE&nbsp;04&nbsp;·&nbsp;SIGNATURE</span></div><div style='line-height:1.8'><b style='letter-spacing:2px'>MIMIR&nbsp;ISSUER</b>&nbsp;&nbsp;·&nbsp;&nbsp;<span style='color:#3fb950'>Go&nbsp;+&nbsp;AWS&nbsp;KMS</span>&nbsp;&nbsp;·&nbsp;&nbsp;<code style='color:#e6edf3'>POST&nbsp;/v1/attest-mcp</code></div><div style='color:#6e7681;font-size:11px;font-family:ui-monospace,monospace;letter-spacing:1.2px'>JCS&nbsp;RFC&nbsp;8785&nbsp;→&nbsp;SHA-256&nbsp;→&nbsp;Ed25519&nbsp;&nbsp;·&nbsp;&nbsp;97–112&nbsp;ms&nbsp;p50</div><div style='border-top:1px solid #1e3a5f;margin-top:6px;padding-top:6px;font-family:ui-monospace,monospace;font-size:11px;letter-spacing:1px'><span style='color:#8b949e'>EMITS</span>&nbsp;&nbsp;<span style='color:#7ee787'>signed&nbsp;envelope&nbsp;E&nbsp;=&nbsp;(F,&nbsp;σ_E)</span></div></div>"]
-
-    Chain["<div style='text-align:center;min-width:940px;line-height:2;padding:4px 8px'><div><span style='font-family:ui-monospace,monospace;color:#8b949e;font-size:11px;letter-spacing:3px'>NODE&nbsp;05&nbsp;·&nbsp;SETTLEMENT&nbsp;(OPTIONAL)</span></div><div style='line-height:1.8'><b style='letter-spacing:2px'>MIMIR&nbsp;REGISTRY</b>&nbsp;&nbsp;·&nbsp;&nbsp;<span style='color:#b88522'>Sepolia&nbsp;·&nbsp;ERC-8004</span>&nbsp;&nbsp;·&nbsp;&nbsp;<code style='color:#e6edf3'>register(digest)</code></div><div style='color:#6e7681;font-size:11px;font-family:ui-monospace,monospace;letter-spacing:1.2px'>EigenLayerSlasherAdapter&nbsp;&nbsp;·&nbsp;&nbsp;AVS&nbsp;mode&nbsp;routes&nbsp;revoke&nbsp;→&nbsp;slash</div><div style='border-top:1px solid #1e3a5f;margin-top:6px;padding-top:6px;font-family:ui-monospace,monospace;font-size:11px;letter-spacing:1px'><span style='color:#8b949e'>EMITS</span>&nbsp;&nbsp;<span style='color:#d4a72c'>anchor(digest,&nbsp;issuer,&nbsp;expiry)</span></div></div>"]
-
-    Verifier["<div style='text-align:center;min-width:940px;line-height:2;padding:4px 8px'><div><span style='font-family:ui-monospace,monospace;color:#8b949e;font-size:11px;letter-spacing:3px'>NODE&nbsp;06&nbsp;·&nbsp;INDEPENDENT&nbsp;CHECK</span></div><div style='line-height:1.8'><b style='letter-spacing:2px'>VERIFIER</b>&nbsp;&nbsp;·&nbsp;&nbsp;<span style='color:#d75952'>Rust&nbsp;/&nbsp;Go&nbsp;/&nbsp;TS</span>&nbsp;&nbsp;·&nbsp;&nbsp;<code style='color:#e6edf3'>spec-only&nbsp;impl</code></div><div style='color:#6e7681;font-size:11px;font-family:ui-monospace,monospace;letter-spacing:1.2px'>recompute&nbsp;C(E)&nbsp;&nbsp;·&nbsp;&nbsp;Ed25519-verify&nbsp;&nbsp;·&nbsp;&nbsp;pick&nbsp;L₁&nbsp;/&nbsp;L₂&nbsp;/&nbsp;L₃</div><div style='border-top:1px solid #1e3a5f;margin-top:6px;padding-top:6px;font-family:ui-monospace,monospace;font-size:11px;letter-spacing:1px'><span style='color:#8b949e'>EMITS</span>&nbsp;&nbsp;<span style='color:#ff7b72'>VALID_k&nbsp;|&nbsp;REJECT&nbsp;→&nbsp;revoke()</span></div></div>"]
-
-    subgraph Legend["<div style='font-family:ui-monospace,monospace;color:#8b949e;font-size:11px;letter-spacing:3px;min-width:940px;text-align:center'>LEGEND&nbsp;&nbsp;·&nbsp;&nbsp;F&nbsp;=&nbsp;signed&nbsp;fields&nbsp;&nbsp;·&nbsp;&nbsp;σ_E&nbsp;=&nbsp;Ed25519&nbsp;signature&nbsp;&nbsp;·&nbsp;&nbsp;C(E)&nbsp;=&nbsp;JCS&nbsp;canonical&nbsp;form&nbsp;&nbsp;·&nbsp;&nbsp;L_k&nbsp;=&nbsp;validation&nbsp;level</div>"]
-        direction LR
-        lg1["<span style='color:#58a6ff'>■</span>&nbsp;&nbsp;invocation"] --- lg2["<span style='color:#bc8cff'>■</span>&nbsp;&nbsp;execution"] --- lg3["<span style='color:#d8853b'>■</span>&nbsp;&nbsp;quality&nbsp;gate"] --- lg4["<span style='color:#3fb950'>■</span>&nbsp;&nbsp;signature"] --- lg5["<span style='color:#b88522'>■</span>&nbsp;&nbsp;settlement"] --- lg6["<span style='color:#d75952'>■</span>&nbsp;&nbsp;verify"]
-    end
-
-    TitleBlock ~~~ Client
-    Client ==>|"GATE · tools/call (JSON-RPC 2.0)"| Server
-    Server ==>|"GATE · σ < 0.75 ∧ S̄ ≥ 9.0 ∧ ⋀ A_j"| Oracle
-    Oracle ==>|"GATE · verdict = DEPLOY"| Issuer
-    Issuer ==>|"GATE · σ_E = Ed25519_sk(C(E))"| Verifier
-    Issuer -.->|"optional · register(digest)"| Chain
-    Verifier -.->|"REJECT · revoke(digest, π)"| Chain
-    Chain ~~~ Legend
-
-    classDef titleBlock fill:#06111f,stroke:#1e3a5f,stroke-width:1px,color:#e6edf3,rx:4,ry:4
-    classDef legend fill:#06111f,stroke:#1e3a5f,stroke-width:1px,color:#8b949e,rx:4,ry:4
-    classDef legendItem fill:#0a1628,stroke:#1e3a5f,stroke-width:0.5px,color:#c9d1d9,rx:4,ry:4
-
-    class TitleBlock titleBlock
-    class Legend legend
-    class lg1,lg2,lg3,lg4,lg5,lg6 legendItem
-
-    style Client   fill:#0f1d33,stroke:#58a6ff,stroke-width:2px,color:#e6edf3,rx:12,ry:12
-    style Server   fill:#0f1d33,stroke:#bc8cff,stroke-width:2px,color:#e6edf3,rx:12,ry:12
-    style Oracle   fill:#0f1d33,stroke:#d8853b,stroke-width:2px,color:#e6edf3,rx:12,ry:12
-    style Issuer   fill:#0f1d33,stroke:#3fb950,stroke-width:2px,color:#e6edf3,rx:12,ry:12
-    style Chain    fill:#0f1d33,stroke:#b88522,stroke-width:2px,color:#e6edf3,rx:12,ry:12
-    style Verifier fill:#0f1d33,stroke:#d75952,stroke-width:2px,color:#e6edf3,rx:12,ry:12
-
-    linkStyle default stroke:#8b949e,stroke-width:1.5px
-```
-
-<sub>Source: [docs/assets/envelope-flow.mmd](docs/assets/envelope-flow.mmd) · rendered natively by GitHub.</sub>
+</sub>
 
 Three validation levels per spec § 12 — a consumer reads the envelope and picks the level its threat model demands:
 
@@ -209,163 +152,35 @@ Every claim in this README is backed by a runnable test, a calibration artifact,
 
 A tool call moves through eight steps; only steps 1–5 are mandatory. Steps 6–8 are optional and triggered by different actors at different times.
 
-```mermaid
----
-title: Mimir provenance lifecycle
-config:
-  look: neo
-  theme: dark
-  themeVariables:
-    background: '#0a1628'
-    primaryColor: '#0f1d33'
-    primaryTextColor: '#e6edf3'
-    primaryBorderColor: '#1e3a5f'
-    lineColor: '#8b949e'
-    secondaryColor: '#0f1d33'
-    tertiaryColor: '#0a1628'
-    mainBkg: '#0a1628'
-    clusterBkg: '#06111f'
-    clusterBorder: '#1e3a5f'
-    fontFamily: '-apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif'
-  flowchart:
-    curve: basis
-    padding: 18
-    nodeSpacing: 44
-    rankSpacing: 50
-    htmlLabels: true
-    subGraphTitleMargin:
-      top: 14
-      bottom: 18
----
-flowchart TB
-    TitleBlock["<div style='font-family:ui-monospace,SFMono-Regular,Consolas,monospace;text-align:center;min-width:940px;padding:6px 10px;line-height:1.8'><div style='color:#58a6ff;font-size:15px;letter-spacing:6px;border-bottom:1px solid #1e3a5f;padding-bottom:10px;margin-bottom:10px'>MIMIR &nbsp;·&nbsp; TOOL-CALL&nbsp;PROVENANCE &nbsp;·&nbsp; LIFECYCLE&nbsp;DIAGRAM</div><div style='display:flex;gap:40px;justify-content:center;font-size:11px;color:#8b949e;letter-spacing:2px'><span>DWG&nbsp;&nbsp;<b style='color:#e6edf3'>MMR-002</b></span><span>REV&nbsp;&nbsp;<b style='color:#e6edf3'>A.1</b></span><span>SCALE&nbsp;&nbsp;<b style='color:#e6edf3'>1:1</b></span><span>STAGES&nbsp;&nbsp;<b style='color:#e6edf3'>n&nbsp;=&nbsp;8</b></span><span>SHEET&nbsp;&nbsp;<b style='color:#e6edf3'>01&nbsp;/&nbsp;01</b></span></div></div>"]
+<p align="center">
+  <a href="docs/assets/lifecycle.mmd" title="View lifecycle source (Mermaid)">
+    <img src="docs/assets/lifecycle.svg"
+         alt="Mimir tool-call provenance lifecycle blueprint — 8 stages: invocation → execution → quality oracle (σ<0.75) → sign (Ed25519) → return → optional anchor (ERC-8004) → optional fraud-dispute (EigenLayer slash) → independent verifier (Rust 6/6)"
+         width="100%" style="max-width: 1100px;">
+  </a>
+</p>
 
-    S1["<div style='text-align:center;min-width:940px;line-height:2;padding:4px 8px'><div><span style='font-family:ui-monospace,monospace;color:#8b949e;font-size:11px;letter-spacing:3px'>STAGE&nbsp;01&nbsp;·&nbsp;INVOCATION</span></div><div style='line-height:1.8'><b style='letter-spacing:2px'>MCP&nbsp;tools/call</b>&nbsp;&nbsp;·&nbsp;&nbsp;<span style='color:#58a6ff'>JSON-RPC&nbsp;2.0</span></div><div style='color:#6e7681;font-size:11px;font-family:ui-monospace,monospace;letter-spacing:1.2px'>client&nbsp;identity&nbsp;via&nbsp;DPoP&nbsp;(RFC&nbsp;9449)&nbsp;&nbsp;·&nbsp;&nbsp;τ&nbsp;≈&nbsp;10&nbsp;ms</div><div style='border-top:1px solid #1e3a5f;margin-top:6px;padding-top:6px;font-family:ui-monospace,monospace;font-size:11px;letter-spacing:1px'><span style='color:#8b949e'>EMITS</span>&nbsp;&nbsp;<span style='color:#79c0ff'>invoked_by&nbsp;·&nbsp;invoked_at</span></div></div>"]
+<sub align="center">
 
-    S2["<div style='text-align:center;min-width:940px;line-height:2;padding:4px 8px'><div><span style='font-family:ui-monospace,monospace;color:#8b949e;font-size:11px;letter-spacing:3px'>STAGE&nbsp;02&nbsp;·&nbsp;EXECUTION</span></div><div style='line-height:1.8'><b style='letter-spacing:2px'>TOOL&nbsp;RUNS</b>&nbsp;&nbsp;·&nbsp;&nbsp;<span style='color:#58a6ff'>raw&nbsp;result&nbsp;+&nbsp;sources</span></div><div style='color:#6e7681;font-size:11px;font-family:ui-monospace,monospace;letter-spacing:1.2px'>tool_id&nbsp;·&nbsp;tool_version&nbsp;·&nbsp;sources[]&nbsp;collected&nbsp;at&nbsp;the&nbsp;edge</div><div style='border-top:1px solid #1e3a5f;margin-top:6px;padding-top:6px;font-family:ui-monospace,monospace;font-size:11px;letter-spacing:1px'><span style='color:#8b949e'>EMITS</span>&nbsp;&nbsp;<span style='color:#79c0ff'>(request,&nbsp;result,&nbsp;sources)</span></div></div>"]
+Source: [docs/assets/lifecycle.mmd](docs/assets/lifecycle.mmd) · Regeneration command in [docs/assets/README.md](docs/assets/README.md).
 
-    S3["<div style='text-align:center;min-width:940px;line-height:2;padding:4px 8px'><div><span style='font-family:ui-monospace,monospace;color:#8b949e;font-size:11px;letter-spacing:3px'>STAGE&nbsp;03&nbsp;·&nbsp;QUALITY&nbsp;ORACLE</span></div><div style='line-height:1.8'><b style='letter-spacing:2px'>SCORING</b>&nbsp;&nbsp;·&nbsp;&nbsp;<span style='color:#d8853b'>Claude&nbsp;Sonnet&nbsp;4.6</span>&nbsp;&nbsp;·&nbsp;&nbsp;<code style='color:#e6edf3'>POST&nbsp;/v1/score</code></div><div style='color:#6e7681;font-size:11px;font-family:ui-monospace,monospace;letter-spacing:1.2px'>σ&nbsp;<&nbsp;0.75&nbsp;&nbsp;·&nbsp;&nbsp;S̄&nbsp;≥&nbsp;9.0&nbsp;&nbsp;·&nbsp;&nbsp;∀&nbsp;axis&nbsp;≥&nbsp;7.0&nbsp;&nbsp;·&nbsp;&nbsp;⋀&nbsp;A_j(R)</div><div style='border-top:1px solid #1e3a5f;margin-top:6px;padding-top:6px;font-family:ui-monospace,monospace;font-size:11px;letter-spacing:1px'><span style='color:#8b949e'>EMITS</span>&nbsp;&nbsp;<span style='color:#ffa657'>verdict&nbsp;·&nbsp;axis&nbsp;scores&nbsp;·&nbsp;σ</span></div></div>"]
-
-    S5["<div style='text-align:center;min-width:940px;line-height:2;padding:4px 8px'><div><span style='font-family:ui-monospace,monospace;color:#8b949e;font-size:11px;letter-spacing:3px'>STAGE&nbsp;04&nbsp;·&nbsp;SIGN</span></div><div style='line-height:1.8'><b style='letter-spacing:2px'>ATTEST</b>&nbsp;&nbsp;·&nbsp;&nbsp;<span style='color:#3fb950'>AWS&nbsp;KMS&nbsp;·&nbsp;Ed25519</span>&nbsp;&nbsp;·&nbsp;&nbsp;<code style='color:#e6edf3'>POST&nbsp;/v1/attest-mcp</code></div><div style='color:#6e7681;font-size:11px;font-family:ui-monospace,monospace;letter-spacing:1.2px'>JCS&nbsp;RFC&nbsp;8785&nbsp;→&nbsp;SHA-256&nbsp;→&nbsp;Ed25519&nbsp;&nbsp;·&nbsp;&nbsp;97–112&nbsp;ms&nbsp;p50</div><div style='border-top:1px solid #1e3a5f;margin-top:6px;padding-top:6px;font-family:ui-monospace,monospace;font-size:11px;letter-spacing:1px'><span style='color:#8b949e'>EMITS</span>&nbsp;&nbsp;<span style='color:#7ee787'>σ_E&nbsp;over&nbsp;C(E)</span></div></div>"]
-
-    S6["<div style='text-align:center;min-width:940px;line-height:2;padding:4px 8px'><div><span style='font-family:ui-monospace,monospace;color:#8b949e;font-size:11px;letter-spacing:3px'>STAGE&nbsp;05&nbsp;·&nbsp;RETURN</span></div><div style='line-height:1.8'><b style='letter-spacing:2px'>CLIENT&nbsp;RECEIVES</b>&nbsp;&nbsp;·&nbsp;&nbsp;<span style='color:#58a6ff'>(result,&nbsp;envelope)</span></div><div style='color:#6e7681;font-size:11px;font-family:ui-monospace,monospace;letter-spacing:1.2px'>downstream&nbsp;consumers&nbsp;may&nbsp;verify&nbsp;at&nbsp;L₁&nbsp;/&nbsp;L₂&nbsp;/&nbsp;L₃</div><div style='border-top:1px solid #1e3a5f;margin-top:6px;padding-top:6px;font-family:ui-monospace,monospace;font-size:11px;letter-spacing:1px'><span style='color:#8b949e'>EMITS</span>&nbsp;&nbsp;<span style='color:#79c0ff'>envelope&nbsp;E&nbsp;ready&nbsp;to&nbsp;ship</span></div></div>"]
-
-    S7["<div style='text-align:center;min-width:940px;line-height:2;padding:4px 8px'><div><span style='font-family:ui-monospace,monospace;color:#8b949e;font-size:11px;letter-spacing:3px'>STAGE&nbsp;06&nbsp;·&nbsp;ANCHOR&nbsp;(OPTIONAL)</span></div><div style='line-height:1.8'><b style='letter-spacing:2px'>REGISTER</b>&nbsp;&nbsp;·&nbsp;&nbsp;<span style='color:#b88522'>Sepolia&nbsp;·&nbsp;ERC-8004</span>&nbsp;&nbsp;·&nbsp;&nbsp;<code style='color:#e6edf3'>registry.register(digest)</code></div><div style='color:#6e7681;font-size:11px;font-family:ui-monospace,monospace;letter-spacing:1.2px'>MimirValidationRegistry&nbsp;0xEbdAa5a9…4117&nbsp;&nbsp;·&nbsp;&nbsp;τ&nbsp;≈&nbsp;15&nbsp;s</div><div style='border-top:1px solid #1e3a5f;margin-top:6px;padding-top:6px;font-family:ui-monospace,monospace;font-size:11px;letter-spacing:1px'><span style='color:#8b949e'>EMITS</span>&nbsp;&nbsp;<span style='color:#d4a72c'>Registered(digest,&nbsp;issuer,&nbsp;expiry)</span></div></div>"]
-
-    S8["<div style='text-align:center;min-width:940px;line-height:2;padding:4px 8px'><div><span style='font-family:ui-monospace,monospace;color:#8b949e;font-size:11px;letter-spacing:3px'>STAGE&nbsp;07&nbsp;·&nbsp;FRAUD&nbsp;DISPUTE&nbsp;(OPTIONAL)</span></div><div style='line-height:1.8'><b style='letter-spacing:2px'>REVOKE&nbsp;+&nbsp;SLASH</b>&nbsp;&nbsp;·&nbsp;&nbsp;<span style='color:#d75952'>EigenLayerSlasherAdapter</span>&nbsp;&nbsp;·&nbsp;&nbsp;<code style='color:#e6edf3'>revoke(digest,&nbsp;π)</code></div><div style='color:#6e7681;font-size:11px;font-family:ui-monospace,monospace;letter-spacing:1.2px'>AllocationManager.slash(SlashingParams)&nbsp;&nbsp;·&nbsp;&nbsp;Δstake&nbsp;=&nbsp;−|strategies|·w_slashed</div><div style='border-top:1px solid #1e3a5f;margin-top:6px;padding-top:6px;font-family:ui-monospace,monospace;font-size:11px;letter-spacing:1px'><span style='color:#8b949e'>EMITS</span>&nbsp;&nbsp;<span style='color:#ff7b72'>Revoked(digest,&nbsp;reasonHash)</span></div></div>"]
-
-    S9["<div style='text-align:center;min-width:940px;line-height:2;padding:4px 8px'><div><span style='font-family:ui-monospace,monospace;color:#8b949e;font-size:11px;letter-spacing:3px'>STAGE&nbsp;08&nbsp;·&nbsp;INDEPENDENT&nbsp;VERIFY</span></div><div style='line-height:1.8'><b style='letter-spacing:2px'>CROSS-IMPL</b>&nbsp;&nbsp;·&nbsp;&nbsp;<span style='color:#bc8cff'>Rust&nbsp;6/6&nbsp;·&nbsp;TS&nbsp;·&nbsp;Go</span></div><div style='color:#6e7681;font-size:11px;font-family:ui-monospace,monospace;letter-spacing:1.2px'>parity:&nbsp;V₁(E)&nbsp;=&nbsp;V₂(E)&nbsp;=&nbsp;V₃(E)&nbsp;&nbsp;·&nbsp;&nbsp;Ω&nbsp;=&nbsp;14/14&nbsp;adversarial</div><div style='border-top:1px solid #1e3a5f;margin-top:6px;padding-top:6px;font-family:ui-monospace,monospace;font-size:11px;letter-spacing:1px'><span style='color:#8b949e'>EMITS</span>&nbsp;&nbsp;<span style='color:#d2a8ff'>VALID_k&nbsp;|&nbsp;REJECT</span></div></div>"]
-
-    subgraph Legend["<div style='font-family:ui-monospace,monospace;color:#8b949e;font-size:11px;letter-spacing:3px;min-width:940px;text-align:center'>LEGEND&nbsp;&nbsp;·&nbsp;&nbsp;GATE&nbsp;NOTATION&nbsp;&nbsp;·&nbsp;&nbsp;σ&nbsp;=&nbsp;axis&nbsp;dispersion&nbsp;&nbsp;·&nbsp;&nbsp;σ_E&nbsp;=&nbsp;Ed25519&nbsp;sig&nbsp;&nbsp;·&nbsp;&nbsp;π&nbsp;=&nbsp;fraud&nbsp;proof&nbsp;&nbsp;·&nbsp;&nbsp;Δstake&nbsp;=&nbsp;slashed&nbsp;wad</div>"]
-        direction LR
-        lg1["<span style='color:#58a6ff'>■</span>&nbsp;&nbsp;invocation"] --- lg2["<span style='color:#d8853b'>■</span>&nbsp;&nbsp;quality"] --- lg3["<span style='color:#3fb950'>■</span>&nbsp;&nbsp;sign"] --- lg4["<span style='color:#b88522'>■</span>&nbsp;&nbsp;anchor"] --- lg5["<span style='color:#d75952'>■</span>&nbsp;&nbsp;dispute"] --- lg6["<span style='color:#bc8cff'>■</span>&nbsp;&nbsp;verify"]
-    end
-
-    TitleBlock ~~~ S1
-    S1 ==>|"GATE · JSON-RPC well-formed"| S2
-    S2 ==>|"GATE · tool returns non-empty"| S3
-    S3 ==>|"GATE · verdict = DEPLOY"| S5
-    S5 ==>|"GATE · σ_E = Ed25519_sk(C(E))"| S6
-    S6 -.->|"optional · register(digest)"| S7
-    S7 -.->|"optional · slash on fraud"| S8
-    S6 ==>|"available to any consumer"| S9
-    S9 ~~~ Legend
-
-    classDef titleBlock fill:#06111f,stroke:#1e3a5f,stroke-width:1px,color:#e6edf3,rx:4,ry:4
-    classDef legend fill:#06111f,stroke:#1e3a5f,stroke-width:1px,color:#8b949e,rx:4,ry:4
-    classDef legendItem fill:#0a1628,stroke:#1e3a5f,stroke-width:0.5px,color:#c9d1d9,rx:4,ry:4
-
-    class TitleBlock titleBlock
-    class Legend legend
-    class lg1,lg2,lg3,lg4,lg5,lg6 legendItem
-
-    style S1 fill:#0f1d33,stroke:#58a6ff,stroke-width:2px,color:#e6edf3,rx:12,ry:12
-    style S2 fill:#0f1d33,stroke:#58a6ff,stroke-width:2px,color:#e6edf3,rx:12,ry:12
-    style S3 fill:#0f1d33,stroke:#d8853b,stroke-width:2px,color:#e6edf3,rx:12,ry:12
-    style S5 fill:#0f1d33,stroke:#3fb950,stroke-width:2px,color:#e6edf3,rx:12,ry:12
-    style S6 fill:#0f1d33,stroke:#3fb950,stroke-width:2px,color:#e6edf3,rx:12,ry:12
-    style S7 fill:#0f1d33,stroke:#b88522,stroke-width:2px,color:#e6edf3,rx:12,ry:12
-    style S8 fill:#0f1d33,stroke:#d75952,stroke-width:2px,color:#e6edf3,rx:12,ry:12
-    style S9 fill:#0f1d33,stroke:#bc8cff,stroke-width:2px,color:#e6edf3,rx:12,ry:12
-
-    linkStyle default stroke:#8b949e,stroke-width:1.5px
-```
-
-<sub>Source: [docs/assets/lifecycle.mmd](docs/assets/lifecycle.mmd) · rendered natively by GitHub.</sub>
+</sub>
 
 The fraud-dispute path is what makes the system *economically* — not just cryptographically — accountable. The flow below shows what happens on `revoke()`:
 
-```mermaid
----
-title: Mimir slashing path
-config:
-  look: neo
-  theme: dark
-  themeVariables:
-    background: '#0a1628'
-    primaryColor: '#0f1d33'
-    primaryTextColor: '#e6edf3'
-    primaryBorderColor: '#1e3a5f'
-    lineColor: '#8b949e'
-    secondaryColor: '#0f1d33'
-    tertiaryColor: '#0a1628'
-    mainBkg: '#0a1628'
-    clusterBkg: '#06111f'
-    clusterBorder: '#1e3a5f'
-    fontFamily: '-apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif'
-  flowchart:
-    curve: basis
-    padding: 18
-    nodeSpacing: 44
-    rankSpacing: 50
-    htmlLabels: true
-    subGraphTitleMargin:
-      top: 14
-      bottom: 18
----
-flowchart TB
-    TitleBlock["<div style='font-family:ui-monospace,SFMono-Regular,Consolas,monospace;text-align:center;min-width:940px;padding:6px 10px;line-height:1.8'><div style='color:#58a6ff;font-size:15px;letter-spacing:6px;border-bottom:1px solid #1e3a5f;padding-bottom:10px;margin-bottom:10px'>MIMIR &nbsp;·&nbsp; FRAUD-PROOF&nbsp;SLASHING &nbsp;·&nbsp; CALL&nbsp;PATH</div><div style='display:flex;gap:40px;justify-content:center;font-size:11px;color:#8b949e;letter-spacing:2px'><span>DWG&nbsp;&nbsp;<b style='color:#e6edf3'>MMR-003</b></span><span>REV&nbsp;&nbsp;<b style='color:#e6edf3'>A.1</b></span><span>SCALE&nbsp;&nbsp;<b style='color:#e6edf3'>1:1</b></span><span>HOPS&nbsp;&nbsp;<b style='color:#e6edf3'>n&nbsp;=&nbsp;5</b></span><span>SHEET&nbsp;&nbsp;<b style='color:#e6edf3'>01&nbsp;/&nbsp;01</b></span></div></div>"]
+<p align="center">
+  <a href="docs/assets/slashing.mmd" title="View slashing source (Mermaid)">
+    <img src="docs/assets/slashing.svg"
+         alt="Mimir fraud-proof slashing path blueprint — 5 hops: disputer → MimirValidationRegistry → EigenLayerSlasherAdapter → EigenLayer v2 AllocationManager → issuer operator (restaked stake reduced by Δstake = −|strategies|·w_slashed)"
+         width="100%" style="max-width: 1100px;">
+  </a>
+</p>
 
-    Disputer["<div style='text-align:center;min-width:940px;line-height:2;padding:4px 8px'><div><span style='font-family:ui-monospace,monospace;color:#8b949e;font-size:11px;letter-spacing:3px'>HOP&nbsp;01&nbsp;·&nbsp;DISPUTE</span></div><div style='line-height:1.8'><b style='letter-spacing:2px'>DISPUTER</b>&nbsp;&nbsp;·&nbsp;&nbsp;<span style='color:#58a6ff'>any&nbsp;party&nbsp;with&nbsp;a&nbsp;valid&nbsp;π</span></div><div style='color:#6e7681;font-size:11px;font-family:ui-monospace,monospace;letter-spacing:1.2px'>fraud&nbsp;proof&nbsp;π&nbsp;over&nbsp;a&nbsp;registered&nbsp;envelope&nbsp;E</div><div style='border-top:1px solid #1e3a5f;margin-top:6px;padding-top:6px;font-family:ui-monospace,monospace;font-size:11px;letter-spacing:1px'><span style='color:#8b949e'>EMITS</span>&nbsp;&nbsp;<span style='color:#79c0ff'>revoke(digest,&nbsp;π)</span></div></div>"]
+<sub align="center">
 
-    Registry["<div style='text-align:center;min-width:940px;line-height:2;padding:4px 8px'><div><span style='font-family:ui-monospace,monospace;color:#8b949e;font-size:11px;letter-spacing:3px'>HOP&nbsp;02&nbsp;·&nbsp;ANCHOR</span></div><div style='line-height:1.8'><b style='letter-spacing:2px'>MimirValidationRegistry</b>&nbsp;&nbsp;·&nbsp;&nbsp;<span style='color:#b88522'>ERC-8004&nbsp;shape</span>&nbsp;&nbsp;·&nbsp;&nbsp;<code style='color:#e6edf3'>Sepolia</code></div><div style='color:#6e7681;font-size:11px;font-family:ui-monospace,monospace;letter-spacing:1.2px'>verify&nbsp;π&nbsp;&nbsp;·&nbsp;&nbsp;emit&nbsp;Revoked(digest,&nbsp;reasonHash)&nbsp;&nbsp;·&nbsp;&nbsp;dispatch&nbsp;ISlasher</div><div style='border-top:1px solid #1e3a5f;margin-top:6px;padding-top:6px;font-family:ui-monospace,monospace;font-size:11px;letter-spacing:1px'><span style='color:#8b949e'>EMITS</span>&nbsp;&nbsp;<span style='color:#d4a72c'>slasher.slash(op,&nbsp;w_slashed,&nbsp;reasonHash)</span></div></div>"]
+Source: [docs/assets/slashing.mmd](docs/assets/slashing.mmd) · Regeneration command in [docs/assets/README.md](docs/assets/README.md).
 
-    Adapter["<div style='text-align:center;min-width:940px;line-height:2;padding:4px 8px'><div><span style='font-family:ui-monospace,monospace;color:#8b949e;font-size:11px;letter-spacing:3px'>HOP&nbsp;03&nbsp;·&nbsp;BRIDGE</span></div><div style='line-height:1.8'><b style='letter-spacing:2px'>EigenLayerSlasherAdapter</b>&nbsp;&nbsp;·&nbsp;&nbsp;<span style='color:#bc8cff'>narrow&nbsp;ISlasher&nbsp;→&nbsp;EL&nbsp;v2&nbsp;ABI</span></div><div style='color:#6e7681;font-size:11px;font-family:ui-monospace,monospace;letter-spacing:1.2px'>build&nbsp;SlashingParams{op,&nbsp;operatorSetId,&nbsp;strategies[],&nbsp;wads[],&nbsp;hex(reasonHash)}</div><div style='border-top:1px solid #1e3a5f;margin-top:6px;padding-top:6px;font-family:ui-monospace,monospace;font-size:11px;letter-spacing:1px'><span style='color:#8b949e'>EMITS</span>&nbsp;&nbsp;<span style='color:#d2a8ff'>AllocationManager.slash(params)</span></div></div>"]
-
-    AM["<div style='text-align:center;min-width:940px;line-height:2;padding:4px 8px'><div><span style='font-family:ui-monospace,monospace;color:#8b949e;font-size:11px;letter-spacing:3px'>HOP&nbsp;04&nbsp;·&nbsp;ENFORCE</span></div><div style='line-height:1.8'><b style='letter-spacing:2px'>EigenLayer&nbsp;v2&nbsp;AllocationManager</b>&nbsp;&nbsp;·&nbsp;&nbsp;<span style='color:#3fb950'>restaking&nbsp;primitive</span></div><div style='color:#6e7681;font-size:11px;font-family:ui-monospace,monospace;letter-spacing:1.2px'>validate&nbsp;operatorSet&nbsp;·&nbsp;apply&nbsp;w_slashed&nbsp;uniformly&nbsp;across&nbsp;strategies</div><div style='border-top:1px solid #1e3a5f;margin-top:6px;padding-top:6px;font-family:ui-monospace,monospace;font-size:11px;letter-spacing:1px'><span style='color:#8b949e'>EMITS</span>&nbsp;&nbsp;<span style='color:#7ee787'>OperatorSlashed&nbsp;event</span></div></div>"]
-
-    Op["<div style='text-align:center;min-width:940px;line-height:2;padding:4px 8px'><div><span style='font-family:ui-monospace,monospace;color:#8b949e;font-size:11px;letter-spacing:3px'>HOP&nbsp;05&nbsp;·&nbsp;CONSEQUENCE</span></div><div style='line-height:1.8'><b style='letter-spacing:2px'>ISSUER&nbsp;OPERATOR</b>&nbsp;&nbsp;·&nbsp;&nbsp;<span style='color:#d75952'>restaked&nbsp;stake&nbsp;reduced</span></div><div style='color:#6e7681;font-size:11px;font-family:ui-monospace,monospace;letter-spacing:1.2px'>Δstake&nbsp;=&nbsp;−|strategies|&nbsp;·&nbsp;w_slashed&nbsp;&nbsp;·&nbsp;&nbsp;w_slashed&nbsp;∈&nbsp;[0,&nbsp;10¹⁸]</div><div style='border-top:1px solid #1e3a5f;margin-top:6px;padding-top:6px;font-family:ui-monospace,monospace;font-size:11px;letter-spacing:1px'><span style='color:#8b949e'>RESULT</span>&nbsp;&nbsp;<span style='color:#ff7b72'>economic&nbsp;finality&nbsp;on&nbsp;the&nbsp;envelope</span></div></div>"]
-
-    subgraph Legend["<div style='font-family:ui-monospace,monospace;color:#8b949e;font-size:11px;letter-spacing:3px;min-width:940px;text-align:center'>LEGEND&nbsp;&nbsp;·&nbsp;&nbsp;π&nbsp;=&nbsp;fraud&nbsp;proof&nbsp;&nbsp;·&nbsp;&nbsp;w_slashed&nbsp;=&nbsp;wad&nbsp;per&nbsp;strategy&nbsp;&nbsp;·&nbsp;&nbsp;Δstake&nbsp;=&nbsp;allocation&nbsp;reduction&nbsp;&nbsp;·&nbsp;&nbsp;4/4&nbsp;SlashingParams&nbsp;fields&nbsp;verified&nbsp;on-chain</div>"]
-        direction LR
-        lg1["<span style='color:#58a6ff'>■</span>&nbsp;&nbsp;dispute"] --- lg2["<span style='color:#b88522'>■</span>&nbsp;&nbsp;anchor"] --- lg3["<span style='color:#bc8cff'>■</span>&nbsp;&nbsp;bridge"] --- lg4["<span style='color:#3fb950'>■</span>&nbsp;&nbsp;enforce"] --- lg5["<span style='color:#d75952'>■</span>&nbsp;&nbsp;consequence"]
-    end
-
-    TitleBlock ~~~ Disputer
-    Disputer ==>|"GATE · proof π well-formed"| Registry
-    Registry ==>|"GATE · registered(digest) ∧ stake(op) > 0"| Adapter
-    Adapter ==>|"GATE · uniform wads ∧ w ≤ 10¹⁸"| AM
-    AM ==>|"GATE · operatorSet ∋ op"| Op
-    Op ~~~ Legend
-
-    classDef titleBlock fill:#06111f,stroke:#1e3a5f,stroke-width:1px,color:#e6edf3,rx:4,ry:4
-    classDef legend fill:#06111f,stroke:#1e3a5f,stroke-width:1px,color:#8b949e,rx:4,ry:4
-    classDef legendItem fill:#0a1628,stroke:#1e3a5f,stroke-width:0.5px,color:#c9d1d9,rx:4,ry:4
-
-    class TitleBlock titleBlock
-    class Legend legend
-    class lg1,lg2,lg3,lg4,lg5 legendItem
-
-    style Disputer fill:#0f1d33,stroke:#58a6ff,stroke-width:2px,color:#e6edf3,rx:12,ry:12
-    style Registry fill:#0f1d33,stroke:#b88522,stroke-width:2px,color:#e6edf3,rx:12,ry:12
-    style Adapter  fill:#0f1d33,stroke:#bc8cff,stroke-width:2px,color:#e6edf3,rx:12,ry:12
-    style AM       fill:#0f1d33,stroke:#3fb950,stroke-width:2px,color:#e6edf3,rx:12,ry:12
-    style Op       fill:#0f1d33,stroke:#d75952,stroke-width:2px,color:#e6edf3,rx:12,ry:12
-
-    linkStyle default stroke:#8b949e,stroke-width:1.5px
-```
-
-<sub>Source: [docs/assets/slashing.mmd](docs/assets/slashing.mmd) · rendered natively by GitHub.</sub>
+</sub>
 
 ## The Math Behind Mimir
 
