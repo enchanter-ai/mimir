@@ -8,20 +8,39 @@ The `spec/` directory is versioned independently — see `spec/index.mdx` frontm
 
 ## [Unreleased]
 
-### Added (v0.1.1-pending)
+Items in `main` that haven't yet shipped under a tag.
 
-- **`EigenLayerSlasherAdapter.sol`** — production-shape adapter that implements Mimir's narrow `ISlasher` interface by translating to EigenLayer v2's `AllocationManager.slash(SlashingParams)`. Operators deploy this alongside the registry when they want slashes routed to a real EigenLayer AllocationManager; Mimir's registry stays restaking-primitive-agnostic.
-- **`MockAllocationManager.sol`** — real-EigenLayer-shape mock implementing `slash(SlashingParams)` for tests + on-chain demonstration of the adapter pattern.
-- **`anchor/go/cmd/deploy-eigenlayer`** — one-shot deploy + verify program: deploys the full 4-contract stack (MockAllocationManager, EigenLayerSlasherAdapter, MockServiceManager, MimirValidationRegistry) and runs a live `register → anchor → revoke → confirm slash` lifecycle with on-chain assertions.
-- **Live Sepolia EigenLayer-adapter deployment** at [`0x633E3e37068a6205DD662a4b8b3637e860e49E42`](https://sepolia.etherscan.io/address/0x633E3e37068a6205DD662a4b8b3637e860e49E42) — full lifecycle proven; all four `SlashingParams` fields verified correct against on-chain `MockAllocationManager`.
-- 4 new Go tests (`eigenlayer_adapter_test.go`): call-translation correctness + 3 defensive-input rejections. Anchor module is now **14/14 PASS**.
-- `scripts/probe-rpcs.py` — added Hoodi network probes (chain_id 560048; Ethereum Foundation successor to Holesky).
-- `docs/deployments.md` — v0.1.1 entry with EigenLayer adapter on-chain assertions table + reproduction commands.
+---
+
+## [0.1.1] — 2026-05-19
+
+The EigenLayer-adapter milestone. Mimir's contracts don't change; instead an adapter pattern lets the registry stay restaking-primitive-agnostic while shipping a thin Solidity bridge to real EigenLayer v2's `SlashingParams` ABI. Proven live on Sepolia with on-chain assertions of all four EigenLayer fields.
+
+### Added
+
+- **`anchor/contracts/EigenLayerSlasherAdapter.sol`** — production-shape adapter implementing Mimir's narrow `ISlasher` interface by translating to EigenLayer v2's `AllocationManager.slash(SlashingParams)`. Operators deploy this alongside the registry to route slashes to a real EigenLayer AllocationManager.
+- **`anchor/contracts/MockAllocationManager.sol`** — real-EigenLayer-shape mock implementing `slash(SlashingParams)` for tests + on-chain demonstration.
+- **`anchor/go/cmd/deploy-eigenlayer`** — one-shot deploy + verify program: deploys the full 4-contract stack and runs a live `register → anchor → revoke → confirm slash` lifecycle with on-chain `SlashingParams` field assertions.
+- **Live Sepolia EigenLayer-adapter deployment** at [`0x633E3e37068a6205DD662a4b8b3637e860e49E42`](https://sepolia.etherscan.io/address/0x633E3e37068a6205DD662a4b8b3637e860e49E42) — full lifecycle proven on a real chain. `totalSlashedRecorded` = 1e17, `lastOperatorSetId` = 1, `lastStrategyCount` = 1, `lastDescription` = `0x832f7ee4…a7130d` (hex of reasonHash) — all four read-back correctly via view calls.
+- **4 new Go tests** (`eigenlayer_adapter_test.go`) — call-translation correctness + 3 defensive-input rejections. Anchor module is now **14/14 PASS**.
+- **3 new adversarial test vectors** (`attack-13/14/15` — `tool_id`, `invoked_by`, `sources` injection). Adversarial suite is now **15/15** PASS.
+- **Live AVS-mode deployment on Sepolia** at [`0xF67f9A7574883a2BDd1841004eC2cc189D616F8a`](https://sepolia.etherscan.io/address/0xF67f9A7574883a2BDd1841004eC2cc189D616F8a) — full operator-gated lifecycle (`registerOperator → anchor → revoke → slash`) proven on-chain.
+- **AWS KMS production signing live in eu-west-1**: KMS_KEY_ARN `a5ae51a1-006d-4c72-9546-321a1c690452`; 97–112 ms p50 sign latency end-to-end including HTTP + KMS round-trip; smoke-tested with external PyNaCl verify against KMS-published JWK.
+- **Etherscan source-verified** Sepolia permissionless registry — anyone can read the Solidity source alongside the deployed bytecode at the contract page.
+- **`scripts/probe-rpcs.py`** — extended with Hoodi network probes (chain_id 560048).
+- **3 new CLI tools** under `anchor/go/cmd/`: `deploy-avs` (5-contract AVS stack), `verify-avs` (live AVS lifecycle), `deploy-eigenlayer` (full adapter stack).
+
+### Changed
+
+- `anchor/compile.js` now compiles 5 contracts (added `EigenLayerSlasherAdapter` + `MockAllocationManager`) and emits runtime bytecode + immutable references + metadata for each.
+- `docs/deployments.md` reorganized: v0.1.0 (permissionless), v0.1.0 (AVS, mock slasher), v0.1.1 (EigenLayer adapter with real SlashingParams ABI).
+- Repo author attribution rewritten to the privacy-preserving GitHub noreply email (`63550727+klaiderman@users.noreply.github.com`).
 
 ### Migration notes
 
 - Mimir's `ISlasher` interface (in `IEigenLayer.sol`) is **unchanged**; no breaking change to the registry's slasher-call shape.
-- Operators wanting to integrate with real EigenLayer should deploy `EigenLayerSlasherAdapter` pointing at the canonical `AllocationManager` for their network (mainnet / Hoodi — see https://github.com/Layr-Labs/eigenlayer-contracts/tree/dev/script/output for the addresses).
+- Operators wanting to integrate with real EigenLayer deploy `EigenLayerSlasherAdapter` pointing at the canonical `AllocationManager` for their target network (mainnet / Hoodi — see https://github.com/Layr-Labs/eigenlayer-contracts/tree/dev/script/output for canonical addresses).
+- No on-chain or off-chain breaking changes — v0.1.1 is purely additive over v0.1.0.
 
 ---
 
@@ -102,5 +121,6 @@ This changelog is `git tag -a`-driven. To cut a new version:
 2. `git tag -a vX.Y.Z -m "Release vX.Y.Z"` then `git push --tags`.
 3. The tag becomes the audit-pinned commit-SHA referenced by `AUDIT_PREP.md` § 11.
 
-[Unreleased]: https://github.com/enchanter-ai/mimir/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/enchanter-ai/mimir/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/enchanter-ai/mimir/releases/tag/v0.1.1
 [0.1.0]: https://github.com/enchanter-ai/mimir/releases/tag/v0.1.0
