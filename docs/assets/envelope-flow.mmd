@@ -1,0 +1,24 @@
+flowchart LR
+    classDef client  fill:#1f6feb,stroke:#1f6feb,color:#fff
+    classDef server  fill:#bc8cff,stroke:#bc8cff,color:#000
+    classDef oracle  fill:#f0883e,stroke:#f0883e,color:#000
+    classDef issuer  fill:#3fb950,stroke:#3fb950,color:#000
+    classDef chain   fill:#d29922,stroke:#d29922,color:#000
+    classDef verify  fill:#58a6ff,stroke:#58a6ff,color:#000
+
+    A["MCP client<br/>(Claude Desktop / Cursor / Cline)"]:::client
+    B["Your MCP server<br/>(forks examples/mcp-server-starter)"]:::server
+    C["Scoring oracle<br/>Claude Sonnet 4.6<br/>5-axis × 8-SAT, σ-bound"]:::oracle
+    D["Mimir issuer (Go)<br/>JCS RFC 8785 → SHA-256<br/>Ed25519 sign via AWS KMS"]:::issuer
+    E["MimirValidationRegistry<br/>(on-chain anchor,<br/>ERC-8004 shape)"]:::chain
+    F["Independent verifier<br/>(Rust / Go / TS)<br/>recompute JCS, verify sig"]:::verify
+
+    A -- "tools/call" --> B
+    B -- "(request, result)" --> C
+    C -- "DEPLOY | HOLD | FAIL" --> B
+    B -- "if DEPLOY:<br/>POST /v1/attest-mcp" --> D
+    D -- "signed envelope" --> B
+    B -- "result + envelope" --> A
+    B -. "register(digest)" .-> E
+    A -. "envelope" .-> F
+    F -. "REJECT triggers<br/>revoke(digest, proof)" .-> E

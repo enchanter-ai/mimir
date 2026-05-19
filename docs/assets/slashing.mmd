@@ -1,0 +1,17 @@
+sequenceDiagram
+    participant Disputer
+    participant Registry as MimirValidationRegistry<br/>(ERC-8004 shape)
+    participant Adapter as EigenLayerSlasherAdapter<br/>(restaking-primitive bridge)
+    participant AM as EigenLayer v2<br/>AllocationManager
+    participant Op as Issuer (operator)<br/>restaked stake
+
+    Disputer->>Registry: revoke(digest, fraud_proof)
+    Registry->>Registry: verify proof
+    Registry->>Registry: emit Revoked(digest, reasonHash)
+    Registry->>Adapter: slasher.slash(operator,<br/>wadSlashed, reasonHash)
+    Adapter->>Adapter: build SlashingParams{<br/>operator, operatorSetId,<br/>strategies[], wads[],<br/>description=hex(reasonHash)}
+    Adapter->>AM: AllocationManager.slash(params)
+    AM->>Op: reduce restaked allocation
+    AM-->>Adapter: slashed
+    Adapter-->>Registry: ok
+    Note over Disputer,Op: 4/4 SlashingParams fields<br/>verified on-chain (Sepolia)

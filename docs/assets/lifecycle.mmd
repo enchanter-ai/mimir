@@ -1,0 +1,25 @@
+flowchart TB
+    classDef call    fill:#1f6feb,stroke:#1f6feb,color:#fff
+    classDef score   fill:#f0883e,stroke:#f0883e,color:#000
+    classDef sign    fill:#3fb950,stroke:#3fb950,color:#000
+    classDef anchor  fill:#d29922,stroke:#d29922,color:#000
+    classDef dispute fill:#f85149,stroke:#f85149,color:#fff
+    classDef verify  fill:#58a6ff,stroke:#58a6ff,color:#000
+
+    S1["1. MCP tools/call<br/>JSON-RPC 2.0"]:::call
+    S2["2. Tool executes<br/>raw result returned"]:::call
+    S3["3. POST /v1/score<br/>scoring oracle σ-bound"]:::score
+    S4{"DEPLOY?"}
+    S5["4. POST /v1/attest-mcp<br/>JCS canon + Ed25519 sign"]:::sign
+    S6["5. Client receives<br/>(result, envelope)"]:::call
+    S7["6. registry.register(digest)<br/>optional anchor"]:::anchor
+    S8["7. revoke(digest, proof)<br/>fraud dispute → slash"]:::dispute
+    S9["8. Independent verifier<br/>spec-only re-implementation"]:::verify
+
+    S1 --> S2 --> S3 --> S4
+    S4 -- "yes" --> S5
+    S4 -- "no" --> X["HOLD / FAIL<br/>no envelope issued"]
+    S5 --> S6
+    S6 --> S7
+    S7 -. "anyone, anytime" .-> S8
+    S6 -. "anyone, anytime" .-> S9
