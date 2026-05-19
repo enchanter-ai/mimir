@@ -103,13 +103,14 @@ config:
   look: neo
   theme: dark
   themeVariables:
-    background: '#0d1117'
-    primaryColor: '#161b22'
+    background: '#0a1628'
+    primaryColor: '#0f1d33'
     primaryTextColor: '#e6edf3'
-    primaryBorderColor: '#30363d'
+    primaryBorderColor: '#1e3a5f'
     lineColor: '#8b949e'
-    secondaryColor: '#161b22'
-    tertiaryColor: '#0d1117'
+    secondaryColor: '#0f1d33'
+    tertiaryColor: '#0a1628'
+    mainBkg: '#0a1628'
     clusterBkg: '#06111f'
     clusterBorder: '#1e3a5f'
     fontFamily: '-apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif'
@@ -215,13 +216,14 @@ config:
   look: neo
   theme: dark
   themeVariables:
-    background: '#0d1117'
-    primaryColor: '#161b22'
+    background: '#0a1628'
+    primaryColor: '#0f1d33'
     primaryTextColor: '#e6edf3'
-    primaryBorderColor: '#30363d'
+    primaryBorderColor: '#1e3a5f'
     lineColor: '#8b949e'
-    secondaryColor: '#161b22'
-    tertiaryColor: '#0d1117'
+    secondaryColor: '#0f1d33'
+    tertiaryColor: '#0a1628'
+    mainBkg: '#0a1628'
     clusterBkg: '#06111f'
     clusterBorder: '#1e3a5f'
     fontFamily: '-apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif'
@@ -300,13 +302,14 @@ config:
   look: neo
   theme: dark
   themeVariables:
-    background: '#0d1117'
-    primaryColor: '#161b22'
+    background: '#0a1628'
+    primaryColor: '#0f1d33'
     primaryTextColor: '#e6edf3'
-    primaryBorderColor: '#30363d'
+    primaryBorderColor: '#1e3a5f'
     lineColor: '#8b949e'
-    secondaryColor: '#161b22'
-    tertiaryColor: '#0d1117'
+    secondaryColor: '#0f1d33'
+    tertiaryColor: '#0a1628'
+    mainBkg: '#0a1628'
     clusterBkg: '#06111f'
     clusterBorder: '#1e3a5f'
     fontFamily: '-apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif'
