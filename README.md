@@ -1,5 +1,9 @@
 # Mimir
 
+<p align="center">
+  <img src="docs/assets/social-preview.jpg" alt="Mimir mascot" width="1280">
+</p>
+
 <p>
   <a href="LICENSE.txt"><img alt="License: Apache-2.0" src="https://img.shields.io/badge/Code-Apache--2.0-3fb950?style=for-the-badge"></a>
   <a href="spec/"><img alt="Spec: CC0-1.0" src="https://img.shields.io/badge/Spec-CC0--1.0-bc8cff?style=for-the-badge"></a>
