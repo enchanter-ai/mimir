@@ -1,7 +1,7 @@
 # Mimir
 
 <p align="center">
-  <img src="docs/assets/social-preview.jpg" alt="Mimir mascot" width="1280">
+  <img src="docs/assets/hero.png" alt="Mimir mascot" width="1280">
 </p>
 
 <p>
