@@ -78,9 +78,9 @@ git clone git@github.com:enchanter-ai/mimir.git
 cd mimir
 
 (cd issuer && go test ./...)                            # all PASS
-(cd anchor/go && CGO_ENABLED=0 go test ./...)            # 12/12 PASS
+(cd anchor/go && CGO_ENABLED=0 go test ./...)            # 14/14 PASS
 (cd spec/reference-impl-rust && cargo test)              # 6/6 PASS
-python spec/test-vectors-adversarial/verify-all.py       # 12/12 PASS
+python spec/test-vectors-adversarial/verify-all.py       # 15/15 PASS
 ```
 
 See [`AUDIT_PREP.md`](AUDIT_PREP.md) § 8 for the full harness.

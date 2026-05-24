@@ -42,13 +42,13 @@ cd mimir
 (cd issuer && go test ./...)                              # all PASS
 
 # Anchor (contract + EigenLayer wiring against simulated EVM)
-(cd anchor/go && CGO_ENABLED=0 go test ./...)              # 12/12 PASS
+(cd anchor/go && CGO_ENABLED=0 go test ./...)              # 14/14 PASS
 
 # Independent Rust verifier round-trips against the Go issuer
 (cd spec/reference-impl-rust && cargo test)                # 6/6 PASS
 
-# 12 adversarial vectors — verifier must reject all
-python spec/test-vectors-adversarial/verify-all.py         # 12/12 PASS
+# 15 adversarial vectors — verifier must handle all (14 REJECT + 1 VERIFY)
+python spec/test-vectors-adversarial/verify-all.py         # 15/15 PASS
 ```
 
 If all four pass, you have a working clone of the protocol stack.

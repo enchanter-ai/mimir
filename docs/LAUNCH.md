@@ -9,9 +9,9 @@ Pre-launch readiness for going public with the Mimir provenance oracle.
 - [x] Spec v2.1 published (CC0)
 - [x] Issuer Go service builds + passes all tests
 - [x] Scoring TS service builds + passes typecheck
-- [x] Anchor contract compiles + 12/12 simulated-EVM tests pass
+- [x] Anchor contract compiles + 14/14 simulated-EVM tests pass
 - [x] Independent Rust verifier round-trips against the Go issuer
-- [x] 12/12 adversarial vectors correctly rejected
+- [x] 15/15 adversarial vectors correctly handled (14 REJECT + 1 canonical-acceptance VERIFY)
 - [x] σ-bound rubric empirically calibrated against 50-case labeled set (100% precision)
 - [x] AUDIT_PREP.md published
 - [x] ROADMAP.md published
@@ -96,9 +96,9 @@ Pre-launch readiness for going public with the Mimir provenance oracle.
 48 hours before public announcement:
 
 - [ ] Run `python demo.py` on a fresh clone of `enchanter-ai/mimir`. It must end with `[OK] SIGNATURE VERIFIED`.
-- [ ] Run `(cd anchor/go && go test ./...)` — 12/12 pass.
+- [ ] Run `(cd anchor/go && go test ./...)` — 14/14 pass.
 - [ ] Run `(cd spec/reference-impl-rust && cargo test)` — 6/6 pass.
-- [ ] Run `python spec/test-vectors-adversarial/verify-all.py` — 12/12 PASS.
+- [ ] Run `python spec/test-vectors-adversarial/verify-all.py` — 15/15 PASS.
 - [ ] Run `python scoring/calibration/poc_translate.py` with `ANTHROPIC_API_KEY` set — real DEPLOY verdict.
 - [ ] Hit the Holesky-deployed contract via `anchor/cmd/verify` — full round-trip.
 - [ ] Verify all linked URLs in README, ROADMAP, AUDIT_PREP resolve.

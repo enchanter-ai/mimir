@@ -30,7 +30,7 @@ jobs:
         run: go test -race -timeout 120s ./...
 
   # ──────────────────────────────────────────────────────────────────────
-  # Anchor (Go + Solidity) — 12/12 simulated-EVM tests
+  # Anchor (Go + Solidity) — 14/14 simulated-EVM tests
   # ──────────────────────────────────────────────────────────────────────
   anchor:
     name: anchor (go + simulated EVM)
@@ -75,7 +75,7 @@ jobs:
         run: cargo test --release
 
   # ──────────────────────────────────────────────────────────────────────
-  # Adversarial vectors — 12/12 must REJECT (or VERIFY for the whitespace one)
+  # Adversarial vectors — 15/15 must REJECT (or VERIFY for the whitespace one)
   # ──────────────────────────────────────────────────────────────────────
   adversarial:
     name: adversarial vectors

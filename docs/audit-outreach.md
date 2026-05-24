@@ -98,6 +98,6 @@ Per `AUDIT_PREP.md` § 10:
 
 ## Honest note for the auditor
 
-The codebase was **AI-assisted to a significant degree** — disclosed in `AUDIT_PREP.md` § 6 with a per-module breakdown. We've been transparent about which modules a human reviewer has and hasn't covered. The Solidity contract is the highest priority because it's the un-reviewed-by-a-Solidity-human artifact with the highest blast radius (on-chain exposure + financial implications via slashing). We've front-loaded the test suite (12/12 simulated-EVM tests, 12/12 adversarial vectors) so the auditor's time can go to design review instead of basic-correctness chasing.
+The codebase was **AI-assisted to a significant degree** — disclosed in `AUDIT_PREP.md` § 6 with a per-module breakdown. We've been transparent about which modules a human reviewer has and hasn't covered. The Solidity contract is the highest priority because it's the un-reviewed-by-a-Solidity-human artifact with the highest blast radius (on-chain exposure + financial implications via slashing). We've front-loaded the test suite (14/14 simulated-EVM tests, 15/15 adversarial vectors) so the auditor's time can go to design review instead of basic-correctness chasing.
 
 We're also happy to grant the auditor read-only access to our private design notes / decision log if helpful. Just ask.

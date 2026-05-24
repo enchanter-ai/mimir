@@ -13,7 +13,7 @@
 | **Issuer (Go)** — HTTP signing service | ✅ MVP+; all tests pass | [`issuer/`](issuer/) |
 | **AWS KMS path** | ✅ Code complete + wire-faithful fake validates the full path | [`issuer/kms/aws.go`](issuer/kms/aws.go), [`issuer/kms_integration_test.go`](issuer/kms_integration_test.go) |
 | **Independent Rust verifier** | ✅ 6/6 tests including live round-trip against the Go issuer | [`spec/reference-impl-rust/`](spec/reference-impl-rust/) |
-| **Adversarial test vectors** | ✅ 12/12 attacks correctly rejected | [`spec/test-vectors-adversarial/`](spec/test-vectors-adversarial/) |
+| **Adversarial test vectors** | ✅ 15/15 attacks correctly handled (14 REJECT + 1 canonical-acceptance VERIFY) | [`spec/test-vectors-adversarial/`](spec/test-vectors-adversarial/) |
 | **MCP wire format** | ✅ Official Anthropic MCP SDK round-trip end-to-end | [`tests/mcp/`](tests/mcp/) |
 | **Scoring (TypeScript)** — σ-bound 5-axis × 8-assertion quality rubric | ✅ Tool-call-result-appropriate rubric; calibrated against real Claude Sonnet 4.6 | [`scoring/`](scoring/) |
 | **σ-bound calibration** | ✅ 50-case labeled set: 100% precision (0/23 bad→DEPLOY), 20% recall | [`scoring/calibration/calibration-report.md`](scoring/calibration/calibration-report.md) |

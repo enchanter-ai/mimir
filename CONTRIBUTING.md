@@ -112,7 +112,7 @@ Optional scope per repo convention: `issuer(kms): ...`, `scoring(rubric): ...`, 
 - [ ] Issue/Discussion referenced for non-trivial changes
 - [ ] Tests added or updated; CI passes
 - [ ] If spec changed: both reference impls updated; canonical form unchanged OR explicitly versioned
-- [ ] If contract changed: bytecode regenerated and committed; 12/12 anchor tests still pass
+- [ ] If contract changed: bytecode regenerated and committed; 14/14 anchor tests still pass
 - [ ] If a public API surface changed: README + the relevant module's README updated
 - [ ] Commit messages follow the convention above
 - [ ] No secrets, no API keys, no Holesky/mainnet private keys committed (the `.gitignore` excludes `.env*`; check your diff)

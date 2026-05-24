@@ -26,9 +26,9 @@ See CONTRIBUTING.md.
      output if helpful. CI will also run the full test trio. -->
 
 - [ ] `cd issuer && go test ./...` passes
-- [ ] `cd anchor/go && CGO_ENABLED=0 go test ./...` passes (12/12)
+- [ ] `cd anchor/go && CGO_ENABLED=0 go test ./...` passes (14/14)
 - [ ] `cd spec/reference-impl-rust && cargo test` passes (6/6)
-- [ ] `python spec/test-vectors-adversarial/verify-all.py` passes (12/12)
+- [ ] `python spec/test-vectors-adversarial/verify-all.py` passes (15/15)
 - [ ] Added a test that fails on `main` and passes with this change (for bug fixes / new features)
 
 ## Surfaces touched
@@ -56,7 +56,7 @@ See CONTRIBUTING.md.
 
 - [ ] No contract change
 - [ ] Contract changed; ran `cd anchor && node compile.js` and committed regenerated `anchor/go/abi/*.{json,bin}`
-- [ ] Anchor tests still 12/12
+- [ ] Anchor tests still 14/14
 
 ## Security / audit relevance
 

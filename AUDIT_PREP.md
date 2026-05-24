@@ -195,11 +195,11 @@ cd mimir
 
 # Build + test all three impls
 (cd issuer            && go test ./...)               # 8+ tests pass
-(cd anchor/go         && CGO_ENABLED=0 go test ./...) # 12/12 tests pass
+(cd anchor/go         && CGO_ENABLED=0 go test ./...) # 14/14 tests pass
 (cd spec/reference-impl-rust && cargo test)           # 6/6 tests pass
 
 # Adversarial vectors
-python spec/test-vectors-adversarial/verify-all.py    # 12/12 PASS
+python spec/test-vectors-adversarial/verify-all.py    # 15/15 PASS
 
 # End-to-end demo (MOCK_MODE — no Anthropic key needed)
 python demo.py                                         # [OK] SIGNATURE VERIFIED

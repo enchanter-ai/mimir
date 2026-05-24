@@ -2,7 +2,7 @@
 
 Operator playbook for deploying `MimirValidationRegistry` to a real chain.
 
-The contract has been proven against go-ethereum's simulated EVM with 12/12 tests passing (7 permissionless + 5 EigenLayer-AVS slashing). This runbook covers the live-chain step. ~15 minutes once credentials are in hand.
+The contract has been proven against go-ethereum's simulated EVM with 14/14 tests passing (7 permissionless + 5 EigenLayer-AVS slashing + 2 EigenLayer-adapter call-translation). This runbook covers the live-chain step. ~15 minutes once credentials are in hand.
 
 ---
 
