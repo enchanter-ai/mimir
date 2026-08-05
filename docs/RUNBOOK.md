@@ -178,4 +178,4 @@ Last revised: 2026-05-16. Pin a specific commit SHA before running these in ange
 | **P2** (degraded — DEPLOY rate drops, scoring API slow, calibration drift) | Open incident ticket; investigate within 4 hours. |
 | **P3** (single failed envelope, cosmetic issue, doc bug) | File a regular issue; address in normal sprint cadence. |
 
-For the v0 / open-source maintainer phase: escalations route to GitHub Issues with the `incident` label + `security@enchanter.ai` for P0/P1.
+For the v0 / open-source maintainer phase: escalations route to GitHub Issues with the `incident` label + `security@enchanter.dev` for P0/P1.

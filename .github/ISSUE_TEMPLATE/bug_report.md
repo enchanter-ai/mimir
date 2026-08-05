@@ -8,7 +8,7 @@ labels: bug
 
 <!--
 Do NOT use this template for security vulnerabilities. See SECURITY.md and email
-security@enchanter.ai instead.
+security@enchanter.dev instead.
 -->
 
 ## What component

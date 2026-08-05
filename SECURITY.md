@@ -4,7 +4,7 @@
 
 If you believe you've found a security issue in Mimir, **do not open a public GitHub issue.** Instead:
 
-1. **Email:** `security@enchanter.ai` (PGP key fingerprint published at <https://github.com/enchanter-ai/.well-known>).
+1. **Email:** `security@enchanter.dev` (PGP key fingerprint published at <https://github.com/enchanter-ai/.well-known>).
 2. **Subject line:** `MIMIR-SEC: <short description>`.
 3. **Body:** include the impact, reproduction steps, affected commit SHA, and your preferred coordinated-disclosure timeline.
 
@@ -89,6 +89,6 @@ See [`AUDIT_PREP.md`](AUDIT_PREP.md) § 8 for the full harness.
 
 ## Contact
 
-- **Security:** `security@enchanter.ai`
+- **Security:** `security@enchanter.dev`
 - **General:** open a [GitHub Discussion](https://github.com/enchanter-ai/mimir/discussions)
 - **Maintainer:** [Enchanter Labs](https://github.com/enchanter-ai)
