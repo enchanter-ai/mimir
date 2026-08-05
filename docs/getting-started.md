@@ -194,7 +194,7 @@ Wire-faithful tests for this path live in [`issuer/kms/aws_test.go`](../issuer/k
 - **Hook into MCP hosts** — the [`tests/mcp/`](../tests/mcp/) pattern works with Claude Desktop, Cursor, Cline. Register the MCP server with your favorite host and start emitting attested tool calls.
 - **Audit the code** — [`AUDIT_PREP.md`](../AUDIT_PREP.md) is the engagement package for Trail of Bits / OpenZeppelin / Sigma Prime.
 - **Track the roadmap** — [`ROADMAP.md`](../ROADMAP.md) lists the next 90 days (testnet → audit → mainnet → launch).
-- **Get help** — [GitHub Discussions](https://github.com/enchanter-ai/mimir/discussions) for spec questions; `security@enchanter.ai` for vulnerabilities.
+- **Get help** — [GitHub Discussions](https://github.com/enchanter-ai/mimir/discussions) for spec questions; `security@enchanter.dev` for vulnerabilities.
 
 ---
 

@@ -72,7 +72,7 @@ Pre-launch readiness for going public with the Mimir provenance oracle.
 ## E. Post-launch operational readiness
 
 - [ ] **GitHub Discussions** enabled with three boards: `spec`, `implementations`, `operators`
-- [ ] **`security@enchanter.ai`** mailbox routes to a real human within 24h
+- [ ] **`security@enchanter.dev`** mailbox routes to a real human within 24h
 - [ ] **CI pipeline** — `foundations-verify.yml`-style workflow that runs the test trio (Go + Rust + adversarial) on every PR
 - [ ] **Dependency monitoring** — Dependabot or Renovate enabled; alerts on CVE in `aws-sdk-go-v2`, `go-ethereum`, `@anthropic-ai/sdk`, `ed25519-dalek`
 - [ ] **Issue templates** — bug report, feature request, spec clarification, security disclosure (private)
@@ -116,7 +116,7 @@ Pre-launch readiness for going public with the Mimir provenance oracle.
 5. **09:10** — HN submission.
 6. **09:15** — Discord announcements (EigenLayer, MCP).
 7. **09:30** — Direct outreach emails to top-10 integrators.
-8. **All day** — monitor `security@enchanter.ai`, GitHub Issues, HN comments. Respond to security claims within 1 hour.
+8. **All day** — monitor `security@enchanter.dev`, GitHub Issues, HN comments. Respond to security claims within 1 hour.
 
 ---
 
