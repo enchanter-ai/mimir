@@ -26,7 +26,7 @@ A Java, Python, C, browser-JS, or any-other-language verifier of the envelope sp
 Fixing typos, clarifying explanations, adding tutorials: send directly. No issue required.
 
 ### Security findings — DO NOT open a public issue
-See [`SECURITY.md`](SECURITY.md). Use `security@enchanter.ai`.
+See [`SECURITY.md`](SECURITY.md). Use `security@enchanter.dev`.
 
 ---
 
@@ -156,4 +156,4 @@ Contributor credit is via the commit history — we do not maintain a separate A
 
 - Maintainer: [Enchanter Labs](https://github.com/enchanter-ai)
 - Discussions: <https://github.com/enchanter-ai/mimir/discussions>
-- Security: `security@enchanter.ai` ([`SECURITY.md`](SECURITY.md))
+- Security: `security@enchanter.dev` ([`SECURITY.md`](SECURITY.md))
