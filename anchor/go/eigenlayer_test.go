@@ -203,12 +203,19 @@ func TestAVSRegisteredOperatorCanAnchor(t *testing.T) {
 }
 
 // ------------------------------------------------------------------
-// Test 3: revoke triggers slasher with configured wad
+// Test 3 (VF-11): revoke with an UNVERIFIED proof must NOT slash.
+//
+// Regression guard for VF-11. Previously revoke() called slasher.slash()
+// unconditionally on every AVS-mode revoke, so any caller could slash an
+// honest issuer with arbitrary bytes. The fix gates the slash on
+// _verifySlashProof(), which is currently unimplemented (returns false)
+// pending a reviewed proof scheme — so no slash may fire. The revocation
+// flag must still flip (open-challenge model preserved).
 // ------------------------------------------------------------------
 
-func TestAVSRevokeTriggersSlash(t *testing.T) {
-	// Use a non-default slashWad to confirm the constructor arg is propagated:
-	// 25% = 2.5e17.
+func TestAVSRevokeDoesNotSlashUnverifiedProof(t *testing.T) {
+	// Configure a non-zero slashWad (25%) to prove that even a fully
+	// configured slasher does NOT fire on an unverified proof.
 	slashWad := new(big.Int)
 	slashWad.SetString("250000000000000000", 10)
 
@@ -230,41 +237,46 @@ func TestAVSRevokeTriggersSlash(t *testing.T) {
 		t.Errorf("pre-revoke totalSlashed: got %s, want 0", got.String())
 	}
 
-	// Revoke with a fraud proof.
-	proof := []byte("replay-mismatch-artifact-reference")
+	// A third party revokes with a bogus, unverified proof.
+	proof := []byte("totally-bogus-unverified-proof")
 	rTx, err := rig.client.RevokeAnchor(ctx, digest, proof)
 	if err != nil {
 		t.Fatalf("revoke: %v", err)
 	}
 	commitAndWait(t, rig.backend, rig.client, rTx)
 
-	// Post-revoke: slasher must have recorded the slash.
+	// VF-11: the slasher must NOT have been invoked.
 	totalSlashed := rig.querySlashed(t, rig.from)
-	if totalSlashed.Cmp(slashWad) != 0 {
-		t.Errorf("totalSlashed: got %s, want %s (the configured slashWad)",
-			totalSlashed.String(), slashWad.String())
+	if totalSlashed.Sign() != 0 {
+		t.Errorf("VF-11 REGRESSION: unverified proof slashed issuer by %s (want 0)",
+			totalSlashed.String())
 	}
-	t.Logf("operator %s slashed by %s wad (25%% of allocation)",
-		rig.from.Hex(), totalSlashed.String())
+	t.Logf("VF-11 ok: unverified proof did not slash (totalSlashed=%s)", totalSlashed.String())
 
-	// IsValid must be false post-revoke.
+	// Revocation flag must still have flipped: IsValid == false post-revoke.
 	valid, err := rig.client.IsValid(ctx, digest)
 	if err != nil {
 		t.Fatalf("IsValid: %v", err)
 	}
 	if valid {
-		t.Error("IsValid returned true after revocation")
+		t.Error("IsValid returned true after revocation; revoke flag should flip")
 	}
 }
 
 // ------------------------------------------------------------------
-// Test 4: multi-operator — slashing one doesn't touch another
+// Test 4 (VF-11): multi-operator — an unverified revoke slashes nobody.
+//
+// With slashing gated behind an (unimplemented) proof verifier, revoking a
+// digest must leave BOTH the targeted issuer and any bystander operator
+// unslashed. This also documents that the previously-asserted "slash
+// isolation" property is currently moot because no slash fires at all;
+// once a real proof scheme is wired in, restore an assertion that a VALID
+// proof slashes ONLY the targeted operator by exactly slashWad.
 // ------------------------------------------------------------------
 
-func TestAVSSlashIsolatedPerOperator(t *testing.T) {
+func TestAVSRevokeSlashesNobodyWithoutValidProof(t *testing.T) {
 	rig := avsSetup(t, big.NewInt(0)) // default 10%
 	ctx := context.Background()
-	const defaultSlashWad = "100000000000000000" // 1e17
 
 	// Register two operators: deployer + a fresh address.
 	otherKey, err := crypto.GenerateKey()
@@ -286,8 +298,8 @@ func TestAVSSlashIsolatedPerOperator(t *testing.T) {
 	}
 	commitAndWait(t, rig.backend, rig.client, tx)
 
-	// Revoke it. Deployer's slashed total = 1e17. Other's = 0.
-	rTx, err := rig.client.RevokeAnchor(ctx, digest, []byte("proof"))
+	// Revoke it with an unverified proof.
+	rTx, err := rig.client.RevokeAnchor(ctx, digest, []byte("unverified-proof"))
 	if err != nil {
 		t.Fatalf("revoke: %v", err)
 	}
@@ -296,13 +308,12 @@ func TestAVSSlashIsolatedPerOperator(t *testing.T) {
 	deployerSlashed := rig.querySlashed(t, rig.from)
 	otherSlashed := rig.querySlashed(t, otherAddr)
 
-	want := new(big.Int)
-	want.SetString(defaultSlashWad, 10)
-	if deployerSlashed.Cmp(want) != 0 {
-		t.Errorf("deployer slashed: got %s, want %s", deployerSlashed, want)
+	// VF-11: no slash fires for anyone on an unverified proof.
+	if deployerSlashed.Sign() != 0 {
+		t.Errorf("VF-11 REGRESSION: targeted operator slashed by %s (want 0)", deployerSlashed)
 	}
 	if otherSlashed.Sign() != 0 {
-		t.Errorf("other operator slashed unexpectedly: %s", otherSlashed)
+		t.Errorf("bystander operator slashed unexpectedly: %s", otherSlashed)
 	}
 }
 

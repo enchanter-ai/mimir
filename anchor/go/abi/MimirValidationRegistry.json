@@ -162,6 +162,37 @@
     "type": "event"
   },
   {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "envelopeDigest",
+        "type": "bytes32"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "issuer",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "reporter",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "bytes32",
+        "name": "reasonHash",
+        "type": "bytes32"
+      }
+    ],
+    "name": "SlashWithheldUnverifiedProof",
+    "type": "event"
+  },
+  {
     "inputs": [],
     "name": "avsModeEnabled",
     "outputs": [

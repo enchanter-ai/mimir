@@ -6,13 +6,26 @@ pragma solidity ^0.8.20;
 //
 // Run with:  forge test --match-path contracts/MimirValidationRegistry.t.sol -vvv
 // Coverage:  forge coverage --match-path contracts/MimirValidationRegistry.t.sol
+//
+// NOTE ON TOOLCHAIN: the canonical, CI-run coverage for these contracts lives in
+// the Go simulated-EVM suite (anchor/go/*_test.go), because compile.js does not
+// vendor forge-std and excludes *.t.sol from the solc build. This Foundry file
+// is kept in lockstep with that suite; if you have Foundry installed it runs
+// standalone, and it documents the intended behavior in Solidity terms.
+//
+// The MimirValidationRegistry constructor is
+//   (IServiceManager serviceManager, ISlasher slasher, uint256 slashWad).
+// Permissionless mode: pass address(0) for both handles.
+// AVS mode:            pass non-zero handles (operator gating + slashing gate).
 // -----------------------------------------------------------------------------
 
 import "forge-std/Test.sol";
 import "./MimirValidationRegistry.sol";
+import "./MockServiceManager.sol";
+import "./MockSlasher.sol";
 
 contract MimirValidationRegistryTest is Test {
-    MimirValidationRegistry registry;
+    MimirValidationRegistry registry; // permissionless-mode instance
 
     address constant ISSUER_A = address(0xA1);
     address constant ISSUER_B = address(0xB2);
@@ -26,11 +39,30 @@ contract MimirValidationRegistryTest is Test {
     uint256 constant NO_EXPIRY  = 0;
 
     function setUp() public {
-        registry = new MimirValidationRegistry();
+        // Permissionless mode: no service manager, no slasher, default wad.
+        registry = new MimirValidationRegistry(
+            IServiceManager(address(0)),
+            ISlasher(address(0)),
+            0
+        );
+    }
+
+    // Helper: spin up an AVS-mode registry wired to fresh mocks.
+    function _deployAvs(uint256 slashWad)
+        internal
+        returns (MimirValidationRegistry avs, MockServiceManager mgr, MockSlasher sl)
+    {
+        mgr = new MockServiceManager();
+        sl  = new MockSlasher();
+        avs = new MimirValidationRegistry(
+            IServiceManager(address(mgr)),
+            ISlasher(address(sl)),
+            slashWad
+        );
     }
 
     // -----------------------------------------------------------------------
-    // Test 1 — register + verify round trip
+    // Test 1 — register + verify round trip (permissionless)
     // -----------------------------------------------------------------------
     function test_RegisterAndVerify() public {
         vm.prank(ISSUER_A);
@@ -61,12 +93,13 @@ contract MimirValidationRegistryTest is Test {
     }
 
     // -----------------------------------------------------------------------
-    // Test 3 — revoke flips revoked flag to true
+    // Test 3 — revoke flips revoked flag to true (permissionless)
     // -----------------------------------------------------------------------
     function test_RevokeFlipsFlag() public {
         registry.register(DIGEST_1, ISSUER_A, FAR_FUTURE);
 
-        assertFalse(registry.verify(DIGEST_1).revoked == true, "pre-condition");
+        (, , bool pre) = registry.verify(DIGEST_1);
+        assertFalse(pre, "pre-condition");
 
         bytes memory proof = abi.encode("replay-artifact-hash-placeholder");
         vm.prank(THIRD_PARTY);
@@ -84,15 +117,10 @@ contract MimirValidationRegistryTest is Test {
         uint256 expiry = block.timestamp + 100;
         registry.register(DIGEST_2, ISSUER_B, expiry);
 
-        // Before expiry: valid
         assertTrue(registry.isValid(DIGEST_2), "should be valid before expiry");
-
-        // Warp past expiry
         vm.warp(block.timestamp + 101);
-
         assertFalse(registry.isValid(DIGEST_2), "should be invalid after expiry");
 
-        // verify() still returns the stored values (it does not check expiry itself)
         (address issuer, uint256 storedExpiry, bool revoked) = registry.verify(DIGEST_2);
         assertEq(issuer, ISSUER_B);
         assertEq(storedExpiry, expiry);
@@ -100,18 +128,11 @@ contract MimirValidationRegistryTest is Test {
     }
 
     // -----------------------------------------------------------------------
-    // Test 5 — non-issuer revoke succeeds (open challenge model)
-    //
-    // NOTE: In the EigenLayer AVS slice, this call will additionally trigger
-    //       ISlasher.freezeOperator(issuer) via the EIGENLAYER_HOOK in
-    //       MimirValidationRegistry.revoke().  The economic slash is gated
-    //       on replay-artifact verification inside the AVS Slashing Reporter;
-    //       only the on-chain revocation flag is set here unconditionally.
+    // Test 5 — non-issuer revoke succeeds (open-challenge model), no slasher
     // -----------------------------------------------------------------------
     function test_NonIssuerRevokeSucceeds() public {
         registry.register(DIGEST_3, ISSUER_A, FAR_FUTURE);
 
-        // Any address — not the issuer — can revoke
         vm.prank(THIRD_PARTY);
         registry.revoke(DIGEST_3, "proof-from-third-party");
 
@@ -153,10 +174,7 @@ contract MimirValidationRegistryTest is Test {
     // -----------------------------------------------------------------------
     function test_NoExpiryNeverExpires() public {
         registry.register(DIGEST_1, ISSUER_A, NO_EXPIRY);
-
-        // Warp a long time into the future
         vm.warp(block.timestamp + 365 days * 100);
-
         assertTrue(registry.isValid(DIGEST_1), "no-expiry entry should always be valid");
     }
 
@@ -190,5 +208,99 @@ contract MimirValidationRegistryTest is Test {
         vm.expectEmit(true, true, false, true);
         emit MimirValidationRegistry.Revoked(DIGEST_1, address(this), proof.length);
         registry.revoke(DIGEST_1, proof);
+    }
+
+    // =======================================================================
+    // VF-11 REGRESSION TESTS — unverified proof MUST NOT slash
+    // =======================================================================
+
+    // (a) A slash attempt with a bogus/unverified proof MUST NOT slash.
+    //     Any third party can call revoke() in AVS mode; the revocation flag
+    //     flips (open-challenge model preserved) but no stake is slashed,
+    //     because _verifySlashProof() rejects the unverified proof.
+    function test_VF11_UnverifiedProofDoesNotSlash() public {
+        (MimirValidationRegistry avs, MockServiceManager mgr, MockSlasher sl) =
+            _deployAvs(2.5e17); // 25%
+
+        // Operator registers + anchors their own envelope.
+        mgr.registerOperator(ISSUER_A);
+        vm.prank(ISSUER_A);
+        avs.register(DIGEST_1, ISSUER_A, FAR_FUTURE);
+
+        assertEq(sl.totalSlashed(ISSUER_A), 0, "pre-revoke slashed must be 0");
+
+        // Attacker submits a bogus proof to slash the honest issuer.
+        vm.prank(THIRD_PARTY);
+        avs.revoke(DIGEST_1, "totally-bogus-proof");
+
+        // VF-11: no slash occurred.
+        assertEq(sl.totalSlashed(ISSUER_A), 0, "VF-11: bogus proof must NOT slash");
+
+        // Revocation flag still flipped (permissionless challenge intact).
+        (, , bool revoked) = avs.verify(DIGEST_1);
+        assertTrue(revoked, "revoke flag should still flip");
+        assertFalse(avs.isValid(DIGEST_1), "isValid should be false after revoke");
+    }
+
+    // (a') The VF-11 "withheld" event is emitted instead of SlashTriggered.
+    function test_VF11_EmitsWithheldEventNotSlashTriggered() public {
+        (MimirValidationRegistry avs, MockServiceManager mgr, ) = _deployAvs(0);
+        mgr.registerOperator(ISSUER_A);
+        vm.prank(ISSUER_A);
+        avs.register(DIGEST_1, ISSUER_A, FAR_FUTURE);
+
+        bytes memory proof = "bogus";
+        // Expect the withheld-proof event with the correct reasonHash.
+        vm.expectEmit(true, true, true, true);
+        emit MimirValidationRegistry.SlashWithheldUnverifiedProof(
+            DIGEST_1, ISSUER_A, THIRD_PARTY, keccak256(proof)
+        );
+        vm.prank(THIRD_PARTY);
+        avs.revoke(DIGEST_1, proof);
+    }
+
+    // (b) Legitimate NON-SLASH paths still work in AVS mode:
+    //     operator registration + anchoring + verify round-trip.
+    //
+    //     NOTE: there is currently NO legitimate *slash* path to exercise.
+    //     _verifySlashProof() is intentionally unimplemented (returns false)
+    //     pending a reviewed proof scheme, so the economic slash is HELD by
+    //     design. Once a verifier is wired in, add a test asserting that a
+    //     VALID proof DOES slash by exactly `slashWad`.
+    function test_AvsLegitimateRegisterAndVerify() public {
+        (MimirValidationRegistry avs, MockServiceManager mgr, ) = _deployAvs(0);
+
+        // Non-operator cannot anchor.
+        vm.prank(ISSUER_B);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                MimirValidationRegistry.NotAnOperator.selector,
+                ISSUER_B
+            )
+        );
+        avs.register(DIGEST_2, ISSUER_B, FAR_FUTURE);
+
+        // Registered operator can anchor their own envelope and verify it.
+        mgr.registerOperator(ISSUER_A);
+        vm.prank(ISSUER_A);
+        avs.register(DIGEST_1, ISSUER_A, FAR_FUTURE);
+
+        (address issuer, , ) = avs.verify(DIGEST_1);
+        assertEq(issuer, ISSUER_A, "operator anchor round-trip");
+        assertTrue(avs.isValid(DIGEST_1), "should be valid");
+    }
+
+    // (c) Intended permissionless revocation WITHOUT slashing still works.
+    //     Permissionless mode has no slasher at all; any address revokes and
+    //     the flag flips.
+    function test_PermissionlessRevokeWithoutSlashing() public {
+        registry.register(DIGEST_1, ISSUER_A, FAR_FUTURE);
+
+        vm.prank(THIRD_PARTY);
+        registry.revoke(DIGEST_1, "any-proof");
+
+        (, , bool revoked) = registry.verify(DIGEST_1);
+        assertTrue(revoked, "permissionless third-party revoke should flip flag");
+        assertFalse(registry.avsModeEnabled(), "permissionless mode: AVS disabled");
     }
 }
