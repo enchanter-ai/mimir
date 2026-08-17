@@ -80,6 +80,19 @@ contract MimirValidationRegistry {
         bytes32         reasonHash
     );
 
+    /// @notice Emitted when an AVS-mode revoke set the revocation flag but did
+    ///         NOT slash, because the submitted fraud `proof` was not
+    ///         cryptographically verified (see VF-11 / `_verifySlashProof`).
+    ///         The revocation itself still took effect; only the economic
+    ///         penalty was withheld. The off-chain dispute system can listen
+    ///         for this to detect disputes awaiting a verifiable proof.
+    event SlashWithheldUnverifiedProof(
+        bytes32 indexed envelopeDigest,
+        address indexed issuer,
+        address indexed reporter,
+        bytes32         reasonHash
+    );
+
     // -----------------------------------------------------------------------
     // Errors
     // -----------------------------------------------------------------------
@@ -191,13 +204,18 @@ contract MimirValidationRegistry {
     }
 
     /// @notice Submit a fraud proof to revoke an envelope. Anyone may call;
-    ///         the slashing decision lives in the Slasher (real EigenLayer
-    ///         enforces the AVS authorization there). In AVS mode this also
-    ///         triggers a stake slash against the envelope's issuer.
+    ///         revocation itself is permissionless by design (open-challenge
+    ///         model) and only sets an on-chain flag — it moves no funds.
+    ///
+    ///         In AVS mode the economic slash is gated on cryptographic
+    ///         verification of `proof` (see `_verifySlashProof`). A revoke
+    ///         with an unverified proof still flips the flag but does NOT
+    ///         slash. This is the VF-11 fix — see the SECURITY note below.
     ///
     /// @param envelopeDigest  digest of the entry to revoke
-    /// @param proof           arbitrary bytes; in the production AVS slice this
-    ///                        is the canonical replay-artifact reference
+    /// @param proof           in the production AVS slice this is the canonical
+    ///                        replay-artifact reference; it MUST be verifiable
+    ///                        before it can justify a slash
     function revoke(bytes32 envelopeDigest, bytes calldata proof) external {
         Entry storage e = _entries[envelopeDigest];
         if (!e.exists)  revert DigestNotFound(envelopeDigest);
@@ -206,14 +224,61 @@ contract MimirValidationRegistry {
         e.revoked = true;
         address issuer = e.issuer;
 
+        // Permissionless: sets a flag only, no funds move.
         emit Revoked(envelopeDigest, msg.sender, proof.length);
 
-        // Slashing hook — only fires when AVS mode is configured.
+        // ---------------------------------------------------------------------
+        // SECURITY (VF-11): The economic slash MUST NOT be triggerable by an
+        // arbitrary caller with an unverified `proof`. The previous code called
+        // `slasher.slash(...)` unconditionally on every AVS-mode revoke, so any
+        // address could slash an honest issuer for the price of gas.
+        //
+        // The slash now fires ONLY when `_verifySlashProof(...)` confirms the
+        // fraud proof cryptographically justifies it. That verifier is
+        // deliberately UNIMPLEMENTED pending a proof-scheme design decision
+        // (see `_verifySlashProof`), so slashing is currently WITHHELD rather
+        // than triggered on a bogus proof. Revocation stays permissionless.
+        //   >>> REQUIRES SECURITY REVIEW BEFORE ANY DEPLOY. <<<
+        // ---------------------------------------------------------------------
         if (avsModeEnabled()) {
             bytes32 reasonHash = keccak256(proof);
-            slasher.slash(issuer, slashWad, reasonHash);
-            emit SlashTriggered(envelopeDigest, issuer, slashWad, reasonHash);
+            if (_verifySlashProof(envelopeDigest, issuer, proof)) {
+                slasher.slash(issuer, slashWad, reasonHash);
+                emit SlashTriggered(envelopeDigest, issuer, slashWad, reasonHash);
+            } else {
+                emit SlashWithheldUnverifiedProof(envelopeDigest, issuer, msg.sender, reasonHash);
+            }
         }
+    }
+
+    /// @dev SECURITY (VF-11): Cryptographic gate for the economic slash.
+    ///      MUST return true ONLY for a fraud proof that cryptographically
+    ///      justifies slashing `issuer` for `envelopeDigest`.
+    ///
+    ///      UNIMPLEMENTED — this deliberately returns false so that NO slash
+    ///      can be triggered until a real proof scheme is wired in. Defining
+    ///      that scheme is a design decision that is NOT derivable from the
+    ///      current code or the IServiceManager/ISlasher interfaces and
+    ///      REQUIRES SECURITY REVIEW. Open questions a human must answer:
+    ///        - What must the proof attest to? (e.g. a signed replay-artifact
+    ///          reference showing the envelope's claim does not reproduce)
+    ///        - Which key signs / authorizes it? (a trusted dispute-oracle /
+    ///          "Slashing Reporter" ECDSA key, an operator BLS quorum, or a
+    ///          new IServiceManager.isSlashable(...) view — none of which exist
+    ///          in the current interfaces)
+    ///        - Immediate-attested vs. optimistic (challenge-window) settlement?
+    ///
+    ///      DO NOT replace this body with `return true` or a naive
+    ///      length/format check absent a reviewed cryptographic scheme:
+    ///      doing so re-opens VF-11 (arbitrary caller can slash honest issuer).
+    function _verifySlashProof(
+        bytes32 envelopeDigest,
+        address issuer,
+        bytes calldata proof
+    ) internal view returns (bool) {
+        // Intentionally no-op / no verification implemented yet.
+        envelopeDigest; issuer; proof; // silence unused-parameter warnings
+        return false;
     }
 
     // -----------------------------------------------------------------------
