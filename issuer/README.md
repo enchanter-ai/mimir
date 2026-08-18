@@ -10,7 +10,7 @@ HTTP service that receives a `tools/call` result and constructs a signed **Prove
 | Scoring | **Stub** — always returns `validation_level: "cryptographically_valid"`. Real scoring engine integration is the next milestone. |
 | `invoked_by` | **Stub** — always `did:enchanter:unverified` (v2.1 § 6.7 clause 3). Real caller authentication is a future milestone. |
 | `tool_call_id` | **UUID stub** — generated server-side. Real call-ID comes from the MCP client (future). |
-| Sources | **Stub** — single placeholder source. Replaced when the scoring engine is integrated. |
+| Sources | **Co-signed; population pending scoring-engine integration.** The `sources[]` field is bound under the envelope signature (canonical form § 6), but is currently a single placeholder entry — real source population lands with the scoring-engine milestone. |
 | Persistence | None. All state is transient. |
 
 **DO NOT use the ephemeral key in production.** Verifiers will lose trust if the key rotates without notice.

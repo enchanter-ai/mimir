@@ -182,6 +182,14 @@ func main() {
 	}
 	from := crypto.PubkeyToAddress(priv.PublicKey)
 
+	// VF-11: trusted Slashing-Reporter key (EIP-191 signer that authorizes a
+	// slash). MUST be non-zero in AVS mode. Default to the deployer for a
+	// self-consistent testnet deploy; override with SLASHING_REPORTER.
+	slashingReporter := from
+	if s := os.Getenv("SLASHING_REPORTER"); s != "" {
+		slashingReporter = common.HexToAddress(s)
+	}
+
 	ec, err := ethclient.Dial(rpc)
 	if err != nil {
 		log.Fatalf("dial %s: %v", rpc, err)
@@ -207,6 +215,7 @@ func main() {
 	log.Printf("  deployer      : %s", from.Hex())
 	log.Printf("  balance       : %s wei (%s ETH)", bal.String(), big.NewFloat(0).Quo(new(big.Float).SetInt(bal), big.NewFloat(1e18)).Text('f', 6))
 	log.Printf("  slash_wad     : %s (= %s%% of allocation per fraud proof)", slashWad.String(), big.NewFloat(0).Quo(new(big.Float).SetInt(slashWad), big.NewFloat(1e16)).Text('f', 1))
+	log.Printf("  slash_reporter: %s", slashingReporter.Hex())
 
 	// Read all three contract artifacts.
 	_, mgrBin := readContract("MockServiceManager")
@@ -226,7 +235,7 @@ func main() {
 	// ---- 3. Deploy MimirValidationRegistry in AVS mode ----
 	log.Println()
 	log.Println("[3/3] Deploy MimirValidationRegistry (AVS mode)")
-	args, err := regABI.Pack("", mgrAddr, slasherAddr, slashWad)
+	args, err := regABI.Pack("", mgrAddr, slasherAddr, slashWad, slashingReporter)
 	if err != nil {
 		log.Fatalf("pack registry constructor: %v", err)
 	}

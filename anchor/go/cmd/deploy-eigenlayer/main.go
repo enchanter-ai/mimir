@@ -176,6 +176,41 @@ func sendCall(ec *ethclient.Client, priv *ecdsa.PrivateKey, from, to common.Addr
 	return rec
 }
 
+// buildSlashProof produces a 65-byte (r,s,v) EIP-191 signature by `signer`
+// (the trusted Slashing-Reporter key) over the canonical slash message:
+//
+//	m = keccak256(abi.encode(chainid, registry, digest, issuer, slashWad))
+//
+// then toEthSignedMessageHash(m). go-ethereum's crypto.Sign yields v in {0,1};
+// MimirValidationRegistry._verifySlashProof expects {27,28}, so we add 27.
+func buildSlashProof(
+	signer *ecdsa.PrivateKey,
+	chainID *big.Int,
+	registry common.Address,
+	digest [32]byte,
+	issuer common.Address,
+	slashWad *big.Int,
+) []byte {
+	uint256T, _ := abi.NewType("uint256", "", nil)
+	addressT, _ := abi.NewType("address", "", nil)
+	bytes32T, _ := abi.NewType("bytes32", "", nil)
+	args := abi.Arguments{
+		{Type: uint256T}, {Type: addressT}, {Type: bytes32T}, {Type: addressT}, {Type: uint256T},
+	}
+	encoded, err := args.Pack(chainID, registry, digest, issuer, slashWad)
+	if err != nil {
+		log.Fatalf("pack canonical slash message: %v", err)
+	}
+	m := crypto.Keccak256Hash(encoded)
+	prefixed := crypto.Keccak256Hash([]byte("\x19Ethereum Signed Message:\n32"), m.Bytes())
+	sig, err := crypto.Sign(prefixed.Bytes(), signer)
+	if err != nil {
+		log.Fatalf("sign slash proof: %v", err)
+	}
+	sig[64] += 27
+	return sig
+}
+
 func explorerURL(chainID *big.Int, addr common.Address) string {
 	switch chainID.Int64() {
 	case 1:
@@ -246,7 +281,11 @@ func main() {
 	regABI, regBin := readContract("MimirValidationRegistry")
 	slashWad := new(big.Int)
 	slashWad.SetString("100000000000000000", 10)
-	regArgs, _ := regABI.Pack("", mgrAddr, adapterAddr, slashWad)
+	// VF-11: the deployer key doubles as the trusted Slashing-Reporter here so
+	// this self-contained lifecycle can sign a VALID slash proof below. In a
+	// real deploy the reporter is a custody-separated key.
+	slashingReporter := from
+	regArgs, _ := regABI.Pack("", mgrAddr, adapterAddr, slashWad, slashingReporter)
 	regAddr := sendDeploy(ec, priv, from, chainID, append(regBin, regArgs...), "MimirRegistry")
 
 	log.Println("\n[4/4] Live lifecycle — register → anchor → revoke → confirm slash")
@@ -270,8 +309,11 @@ func main() {
 	rec := waitMined(ec, tx)
 	log.Printf("   AnchorEnvelope block %d gas %d", rec.BlockNumber.Uint64(), rec.GasUsed)
 
-	// Revoke — fires adapter.slash → AllocationManager.slash
-	rTx, err := cli.RevokeAnchor(ctx, digest, []byte("eigenlayer-adapter-live-fraud-proof"))
+	// Revoke — fires adapter.slash → AllocationManager.slash.
+	// VF-11: the slash only fires for a VALID reporter-signed proof. Build the
+	// EIP-191 signature by the reporter key over the canonical slash message.
+	proof := buildSlashProof(priv, chainID, regAddr, digest, from, slashWad)
+	rTx, err := cli.RevokeAnchor(ctx, digest, proof)
 	if err != nil {
 		log.Fatalf("revoke: %v", err)
 	}
