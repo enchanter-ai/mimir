@@ -32,7 +32,7 @@ The first MCP-layer standard that binds *request + result + sources* under one s
 
 **In plain English:** AI agents make tool calls all day, and right now there's no proof afterwards of what they actually asked, what they actually got back, or which sources actually backed the answer. Mimir signs every tool-call result like a sealed envelope — and if the seal ever turns out to be a lie, the issuer's on-chain stake gets slashed. Live on Sepolia today.
 
-**Technically:** Mimir defines a Standards Track envelope spec (v2.1) signed Ed25519 over RFC-8785-JCS-canonical `(tool_id, tool_version, invoked_at, invoked_by, request_digest, result_digest, sources[])`. A σ-bound scoring oracle (Claude Sonnet 4.6, 5-axis × 8-SAT) gates DEPLOY only when *σ < 0.75 ∧ overall ≥ 9.0 ∧ min-axis ≥ 7.0 ∧ all 8 assertions pass* (empirically calibrated against a 50-case labeled set, 100% precision). On-chain, `MimirValidationRegistry` (ERC-8004 shape) anchors envelope digests and routes accepted fraud proofs through `EigenLayerSlasherAdapter` → EigenLayer v2 `AllocationManager.slash(SlashingParams)` — proven live on Sepolia with 4/4 `SlashingParams` field assertions reading back correctly from on-chain state. Three independent verifiers (Go, Rust, TypeScript) all parse the same canonical form from the spec alone.
+**Technically:** Mimir defines a Standards Track envelope spec (v2.1) signed Ed25519 over RFC-8785-JCS-canonical `(tool_id, tool_version, invoked_at, invoked_by, request_digest, result_digest, sources[])`. A separate σ-bound scoring oracle (Claude Sonnet 4.6, 5-axis × 8-SAT) computes a DEPLOY/HOLD verdict (*σ < 0.75 ∧ overall ≥ 9.0 ∧ min-axis ≥ 7.0 ∧ all 8 assertions pass*, empirically calibrated against a 50-case labeled set, 100% precision) — **today this verdict is not a gate**: the issuer's `/v1/attest` signs the request+result unconditionally, regardless of what the scoring service returns (or whether it was ever called), and `sources[]` is a hardcoded placeholder rather than the scoring engine's evidence. Wiring the scoring verdict and real sources into the signing path is tracked in [`ROADMAP.md`](ROADMAP.md), not yet implemented. On-chain, `MimirValidationRegistry` (ERC-8004 shape) anchors envelope digests and routes accepted fraud proofs through `EigenLayerSlasherAdapter` → EigenLayer v2 `AllocationManager.slash(SlashingParams)` — proven live on Sepolia with 4/4 `SlashingParams` field assertions reading back correctly from on-chain state. Three independent verifiers (Go, Rust, TypeScript) all parse the same canonical form from the spec alone.
 
 ## Origin
 
@@ -104,12 +104,12 @@ Not for:
 
 ## How It Works
 
-Mimir is not a single service — it's a four-process pipeline plus an on-chain anchor. A user invokes an MCP tool through Claude Desktop / Cursor / Cline. Your MCP server runs the tool, gets the raw result, ships `(request, result)` to a **scoring oracle** (Claude Sonnet 4.6, σ-bound across 5 axes and 8 SAT assertions). If — and only if — the verdict is DEPLOY, the server posts to the **issuer**, which canonicalizes the envelope per RFC 8785, computes SHA-256 digests over the request and result, and signs the whole canonical form with Ed25519 via AWS KMS. The signed envelope goes back to the MCP client alongside the result. An **independent verifier** (Rust, TS, Go, or anything that can do JCS + Ed25519) can recompute the canonical form and check the signature against the published JWK. An optional on-chain step calls `MimirValidationRegistry.register(digest)` so the envelope is globally referenceable; an optional fraud-dispute step calls `revoke(digest, proof)` which routes through `EigenLayerSlasherAdapter` to a real EigenLayer v2 `AllocationManager.slash(SlashingParams)`, reducing the issuer's restaked allocation.
+Mimir is not a single service — it's a four-process pipeline plus an on-chain anchor, though today only the signing and verification legs are actually wired together. A user invokes an MCP tool through Claude Desktop / Cursor / Cline. Your MCP server runs the tool, gets the raw result, and *can* ship `(request, result)` to a **scoring oracle** (Claude Sonnet 4.6, σ-bound across 5 axes and 8 SAT assertions) to get a DEPLOY/HOLD verdict. That verdict is advisory only — nothing enforces "only post to the issuer if DEPLOY"; the caller has to implement that check itself (`demo.py` does; `scoring/calibration/poc_translate.py` does not). Whatever the caller posts to the **issuer** gets canonicalized per RFC 8785, SHA-256-digested over the request and result, and signed with Ed25519 via AWS KMS unconditionally — the issuer never calls the scoring service or inspects a verdict, and `sources[]` in the resulting envelope is a hardcoded placeholder, not the scoring engine's evidence (tracked in [`ROADMAP.md`](ROADMAP.md)). The signed envelope goes back to the MCP client alongside the result. An **independent verifier** (Rust, TS, Go, or anything that can do JCS + Ed25519) can recompute the canonical form and check the signature against the published JWK — this leg is real and does work as described. An optional on-chain step calls `MimirValidationRegistry.register(digest)` so the envelope is globally referenceable; an optional fraud-dispute step calls `revoke(digest, proof)` which routes through `EigenLayerSlasherAdapter` to a real EigenLayer v2 `AllocationManager.slash(SlashingParams)`, reducing the issuer's restaked allocation.
 
 <p align="center">
   <a href="docs/assets/envelope-flow.mmd" title="View envelope-flow source (Mermaid)">
     <img src="docs/assets/envelope-flow.svg"
-         alt="Mimir envelope flow blueprint — 6 nodes: MCP client (invocation) → MCP server (execution) → scoring oracle (quality gate) → Mimir issuer (Ed25519 sign via AWS KMS) → on-chain registry (optional settlement) → independent verifier (Rust/Go/TS), with GATE notation per edge"
+         alt="Mimir envelope flow blueprint — 6 nodes: MCP client (invocation) → MCP server (execution) → scoring oracle (advisory verdict, not enforced by the issuer today) → Mimir issuer (signs unconditionally, Ed25519 via AWS KMS) → on-chain registry (optional settlement) → independent verifier (Rust/Go/TS)"
          width="100%" style="max-width: 1100px;">
   </a>
 </p>
@@ -135,6 +135,8 @@ Every existing standard signs only a piece: JWT signs the claims, COSE signs the
 ### σ-bound DEPLOY rule, empirically calibrated
 
 Most quality-scoring systems return a single number. Mimir's scoring oracle returns 5 axes (clarity, specificity, faithfulness, safety, structure) plus 8 SAT assertions, and only emits a DEPLOY verdict when *σ across content axes < 0.75 ∧ overall ≥ 9.0 ∧ every axis ≥ 7.0 ∧ 8/8 assertions pass*. The σ threshold of 0.75 was not picked because it sounded good — it was empirically calibrated against a 50-case labeled set (27 known-good, 23 known-bad). **Result: 100% precision** — every case the rubric DEPLOY'd was genuinely good, zero false positives across 23 deliberately-bad cases including hallucination, sycophancy, evasion, incompleteness, and format-mismatch.
+
+**This verdict is currently informational only.** The scoring service (`scoring/`) computes it, but nothing in the issuer's signing path consumes it: `POST /v1/attest` signs whatever `(request, result)` it's given whether or not `/v1/score` was ever called, and whatever the verdict was. Making DEPLOY a real precondition for signing — and populating `sources[]` from the scoring engine's evidence instead of a stub — is open work; see [`ROADMAP.md`](ROADMAP.md).
 
 ### Restaked-stake slashing on fraud-proof replay
 
@@ -338,7 +340,8 @@ cd mimir
 (cd issuer && go run . &)
 
 python scoring/calibration/poc_translate.py
-# → real DEPLOY verdict from real Claude + real Ed25519 signature + real external verify
+# → real scoring verdict from real Claude (printed, not enforced) + real Ed25519
+#   signature (issuer signs unconditionally) + real external verify
 ```
 
 50-case calibration probe (~$2.50 of Claude credits, ~5 min wall time):
