@@ -6,16 +6,15 @@ You have an MCP tool that returns results. You want every result to ship with a 
 
 ## What you'll have at the end
 
-A live local pipeline that:
+A live local pair of services, run separately, that:
 
-1. Accepts a tool-call result via HTTP.
-2. Scores it with Claude Sonnet 4.6 on a 5-axis × 8-assertion rubric.
-3. Wraps the request + result + sources in a canonical envelope, signs it with Ed25519.
-4. Returns the envelope, which any third party can verify against the issuer's published public key.
+1. **Scoring service** — accepts a tool-call result via HTTP and scores it with Claude Sonnet 4.6 on a 5-axis × 8-assertion rubric, returning a DEPLOY/HOLD verdict.
+2. **Issuer service** — independently accepts a request + result via HTTP, wraps them in a canonical envelope (with a placeholder `sources[]` — real source population isn't wired yet, see `ROADMAP.md`), and signs it with Ed25519. It does not call the scoring service or check its verdict; a DEPLOY-only gate is something the caller has to enforce itself.
+3. Returns the envelope, which any third party can verify against the issuer's published public key.
 
 Optionally:
 
-5. Anchors the envelope digest on Sepolia testnet (already deployed at [`0xEbdAa5a99DFde9a4A603aacfE1cC5AcFc0DA4117`](https://sepolia.etherscan.io/address/0xEbdAa5a99DFde9a4A603aacfE1cC5AcFc0DA4117)).
+4. Anchors the envelope digest on Sepolia testnet (already deployed at [`0xEbdAa5a99DFde9a4A603aacfE1cC5AcFc0DA4117`](https://sepolia.etherscan.io/address/0xEbdAa5a99DFde9a4A603aacfE1cC5AcFc0DA4117)).
 
 ---
 
@@ -98,7 +97,7 @@ python poc_translate.py
 # → "*** DEPLOY VERDICT achieved end-to-end with real Claude ***"
 ```
 
-This produces real DEPLOY-tier envelopes from real Claude judgment. Cost: ~$0.05 of API credits per scored envelope.
+This scores the sample with real Claude judgment and signs a real Ed25519 envelope — but the script signs unconditionally in Step 2 without checking the Step 1 verdict, so "DEPLOY VERDICT achieved" describes what scoring returned, not a gate the signing step enforced. Cost: ~$0.05 of API credits per scored envelope.
 
 For a full empirical calibration with confusion-matrix + threshold sweep, see [`scoring/calibration/calibration-report.md`](../scoring/calibration/calibration-report.md) (50-case set, 100% precision, 20% recall at σ < 0.75).
 
