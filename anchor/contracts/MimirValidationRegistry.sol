@@ -54,6 +54,13 @@ contract MimirValidationRegistry {
     ///         fraud proof, in WAD (1e18 = 100%). Defaults to 10% (1e17).
     uint256 public immutable slashWad;
 
+    /// @notice The single trusted Slashing-Reporter ECDSA key. A fraud `proof`
+    ///         only authorizes a slash when it is an EIP-191 signature by THIS
+    ///         address over the canonical slash message (see `_verifySlashProof`).
+    ///         Set at construction; in AVS mode it MUST be non-zero. In
+    ///         permissionless dev mode it is unused and may be address(0).
+    address public immutable slashingReporter;
+
     // -----------------------------------------------------------------------
     // Events
     // -----------------------------------------------------------------------
@@ -113,16 +120,33 @@ contract MimirValidationRegistry {
     ///                          (or address(0) for no-slashing dev mode).
     /// @param _slashWad        Fraction of allocation to slash per fraud
     ///                          proof, in WAD. Pass 0 to use the default 1e17 (10%).
-    constructor(IServiceManager _serviceManager, ISlasher _slasher, uint256 _slashWad) {
+    /// @param _slashingReporter Trusted Slashing-Reporter ECDSA address whose
+    ///                          EIP-191 signature over the canonical slash
+    ///                          message authorizes a slash. MUST be non-zero in
+    ///                          AVS mode; ignored (may be address(0)) in
+    ///                          permissionless dev mode.
+    constructor(
+        IServiceManager _serviceManager,
+        ISlasher _slasher,
+        uint256 _slashWad,
+        address _slashingReporter
+    ) {
         // The two AVS handles must be set together — half-configuration would
         // produce confusing security properties.
         require(
             (address(_serviceManager) == address(0)) == (address(_slasher) == address(0)),
             "registry: serviceManager and slasher must be set together"
         );
-        serviceManager = _serviceManager;
-        slasher        = _slasher;
-        slashWad       = _slashWad == 0 ? 1e17 : _slashWad;
+        // In AVS mode the slash authority MUST be configured — otherwise no
+        // proof could ever be verified and slashing would be permanently dead.
+        require(
+            address(_serviceManager) == address(0) || _slashingReporter != address(0),
+            "registry: slashingReporter required in AVS mode"
+        );
+        serviceManager   = _serviceManager;
+        slasher          = _slasher;
+        slashWad         = _slashWad == 0 ? 1e17 : _slashWad;
+        slashingReporter = _slashingReporter;
     }
 
     /// @notice Returns true when this contract is configured for AVS mode
@@ -234,11 +258,14 @@ contract MimirValidationRegistry {
         // address could slash an honest issuer for the price of gas.
         //
         // The slash now fires ONLY when `_verifySlashProof(...)` confirms the
-        // fraud proof cryptographically justifies it. That verifier is
-        // deliberately UNIMPLEMENTED pending a proof-scheme design decision
-        // (see `_verifySlashProof`), so slashing is currently WITHHELD rather
-        // than triggered on a bogus proof. Revocation stays permissionless.
-        //   >>> REQUIRES SECURITY REVIEW BEFORE ANY DEPLOY. <<<
+        // fraud `proof` is an EIP-191 signature by the trusted `slashingReporter`
+        // key over the canonical slash message (chainid + this contract +
+        // envelopeDigest + issuer + slashWad). A revoke with any other proof
+        // still flips the revoked flag (open-challenge model) but emits
+        // `SlashWithheldUnverifiedProof` and moves no stake. Revocation stays
+        // permissionless; only the economic penalty is gated.
+        //   >>> Slashing is now ENABLED behind reporter-key attestation.
+        //   >>> REQUIRES HUMAN SECURITY REVIEW + Sepolia REDEPLOY BEFORE PRODUCTION. <<<
         // ---------------------------------------------------------------------
         if (avsModeEnabled()) {
             bytes32 reasonHash = keccak256(proof);
@@ -252,33 +279,77 @@ contract MimirValidationRegistry {
     }
 
     /// @dev SECURITY (VF-11): Cryptographic gate for the economic slash.
-    ///      MUST return true ONLY for a fraud proof that cryptographically
+    ///      Returns true ONLY for a fraud `proof` that cryptographically
     ///      justifies slashing `issuer` for `envelopeDigest`.
     ///
-    ///      UNIMPLEMENTED — this deliberately returns false so that NO slash
-    ///      can be triggered until a real proof scheme is wired in. Defining
-    ///      that scheme is a design decision that is NOT derivable from the
-    ///      current code or the IServiceManager/ISlasher interfaces and
-    ///      REQUIRES SECURITY REVIEW. Open questions a human must answer:
-    ///        - What must the proof attest to? (e.g. a signed replay-artifact
-    ///          reference showing the envelope's claim does not reproduce)
-    ///        - Which key signs / authorizes it? (a trusted dispute-oracle /
-    ///          "Slashing Reporter" ECDSA key, an operator BLS quorum, or a
-    ///          new IServiceManager.isSlashable(...) view — none of which exist
-    ///          in the current interfaces)
-    ///        - Immediate-attested vs. optimistic (challenge-window) settlement?
+    ///      SCHEME (locked design — see the VF-11 implementation note):
+    ///        - Authority: a single trusted Slashing-Reporter ECDSA key
+    ///          (`slashingReporter`, set at construction).
+    ///        - `proof` is a 65-byte `(r, s, v)` secp256k1 signature by that key
+    ///          over the EIP-191 ("\x19Ethereum Signed Message:\n32") digest of
+    ///          the canonical slash message
+    ///              m = keccak256(abi.encode(
+    ///                      block.chainid, address(this),
+    ///                      envelopeDigest, issuer, slashWad));
+    ///          Binding chainid + this contract + the (once-revocable) digest +
+    ///          the issuer + the wad gives cross-chain / cross-contract / replay
+    ///          safety: a signature is valid for exactly one slash on one chain,
+    ///          and the digest can only be revoked once (see `revoke`).
+    ///        - Settlement is IMMEDIATE on a valid proof (no challenge window).
     ///
-    ///      DO NOT replace this body with `return true` or a naive
-    ///      length/format check absent a reviewed cryptographic scheme:
-    ///      doing so re-opens VF-11 (arbitrary caller can slash honest issuer).
+    ///      Malleability / validity guards: reject any `proof` whose length is
+    ///      not 65 bytes, whose `v` is not 27 or 28, or whose `s` is in the
+    ///      upper half of the curve order (EIP-2 low-s), and reject an
+    ///      `ecrecover` of address(0).
+    ///
+    ///      NOTE: this authorizes REAL slashing. REQUIRES HUMAN SECURITY REVIEW
+    ///      + Sepolia redeploy before production. The reporter key is a trusted
+    ///      component; its custody/rotation is an operational concern documented
+    ///      for the security reviewer.
     function _verifySlashProof(
         bytes32 envelopeDigest,
         address issuer,
         bytes calldata proof
     ) internal view returns (bool) {
-        // Intentionally no-op / no verification implemented yet.
-        envelopeDigest; issuer; proof; // silence unused-parameter warnings
-        return false;
+        // A valid ECDSA signature is exactly 65 bytes: r (32) || s (32) || v (1).
+        if (proof.length != 65) {
+            return false;
+        }
+
+        bytes32 r;
+        bytes32 s;
+        uint8   v;
+        assembly {
+            // proof is calldata; load the three components.
+            r := calldataload(proof.offset)
+            s := calldataload(add(proof.offset, 32))
+            // v is the 33rd byte; load the word starting there and take its
+            // most-significant byte.
+            v := byte(0, calldataload(add(proof.offset, 64)))
+        }
+
+        // EIP-2: reject the malleable upper-half s. secp256k1n/2 =
+        // 0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A0.
+        if (uint256(s) > 0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A0) {
+            return false;
+        }
+        if (v != 27 && v != 28) {
+            return false;
+        }
+
+        // Reconstruct the canonical slash message and apply the EIP-191 prefix.
+        bytes32 m = keccak256(
+            abi.encode(block.chainid, address(this), envelopeDigest, issuer, slashWad)
+        );
+        bytes32 ethSigned = keccak256(
+            abi.encodePacked("\x19Ethereum Signed Message:\n32", m)
+        );
+
+        address recovered = ecrecover(ethSigned, v, r, s);
+        if (recovered == address(0)) {
+            return false;
+        }
+        return recovered == slashingReporter;
     }
 
     // -----------------------------------------------------------------------

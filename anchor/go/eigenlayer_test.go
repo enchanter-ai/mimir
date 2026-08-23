@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -45,9 +46,17 @@ type avsRig struct {
 	deployer *ecdsa.PrivateKey
 	from     common.Address
 
+	// reporterKey is the trusted Slashing-Reporter ECDSA key whose EIP-191
+	// signature over the canonical slash message authorizes a slash (VF-11).
+	reporterKey  *ecdsa.PrivateKey
+	reporterAddr common.Address
+
 	managerAddr  common.Address
 	slasherAddr  common.Address
 	registryAddr common.Address
+
+	slashWad *big.Int
+	chainID  *big.Int
 
 	client *anchor.Client
 }
@@ -61,6 +70,13 @@ func avsSetup(t *testing.T, slashWad *big.Int) *avsRig {
 	}
 	from := crypto.PubkeyToAddress(priv.PublicKey)
 
+	// Independent trusted Slashing-Reporter key (NOT the deployer/operator).
+	reporterKey, err := crypto.GenerateKey()
+	if err != nil {
+		t.Fatalf("genkey reporter: %v", err)
+	}
+	reporterAddr := crypto.PubkeyToAddress(reporterKey.PublicKey)
+
 	alloc := types.GenesisAlloc{from: {Balance: genesisBalance}}
 	backend := simulated.NewBackend(alloc, simulated.WithBlockGasLimit(30_000_000))
 	t.Cleanup(func() { _ = backend.Close() })
@@ -69,7 +85,7 @@ func avsSetup(t *testing.T, slashWad *big.Int) *avsRig {
 
 	managerAddr := deployMockServiceManager(t, ctx, backend, ec, priv)
 	slasherAddr := deployMockSlasher(t, ctx, backend, ec, priv)
-	registryAddr := deployRegistry(t, ctx, backend, ec, priv, managerAddr, slasherAddr, slashWad)
+	registryAddr := deployRegistry(t, ctx, backend, ec, priv, managerAddr, slasherAddr, slashWad, reporterAddr)
 
 	chainID, err := ec.ChainID(ctx)
 	if err != nil {
@@ -81,16 +97,63 @@ func avsSetup(t *testing.T, slashWad *big.Int) *avsRig {
 		t.Fatalf("anchor.NewWithClient: %v", err)
 	}
 
+	// The contract's default slashWad is 1e17 when 0 is passed — mirror that
+	// here so tests that pass 0 can still reconstruct the signed message.
+	effectiveWad := new(big.Int).Set(slashWad)
+	if effectiveWad.Sign() == 0 {
+		effectiveWad.SetString("100000000000000000", 10) // 1e17 default
+	}
+
 	return &avsRig{
 		backend:      backend,
 		ec:           ec,
 		deployer:     priv,
 		from:         from,
+		reporterKey:  reporterKey,
+		reporterAddr: reporterAddr,
 		managerAddr:  managerAddr,
 		slasherAddr:  slasherAddr,
 		registryAddr: registryAddr,
+		slashWad:     effectiveWad,
+		chainID:      chainID,
 		client:       c,
 	}
+}
+
+// buildSlashProof produces a 65-byte (r,s,v) EIP-191 signature by `signer` over
+// the canonical slash message:
+//   m = keccak256(abi.encode(chainid, registry, digest, issuer, slashWad))
+// then toEthSignedMessageHash(m). go-ethereum's crypto.Sign yields v in {0,1};
+// the contract expects {27,28}, so we add 27.
+func (rig *avsRig) buildSlashProof(t *testing.T, signer *ecdsa.PrivateKey, digest [32]byte, issuer common.Address) []byte {
+	t.Helper()
+
+	// abi.encode(uint256 chainid, address registry, bytes32 digest, address issuer, uint256 slashWad)
+	uint256T, _ := abi.NewType("uint256", "", nil)
+	addressT, _ := abi.NewType("address", "", nil)
+	bytes32T, _ := abi.NewType("bytes32", "", nil)
+	args := abi.Arguments{
+		{Type: uint256T}, {Type: addressT}, {Type: bytes32T}, {Type: addressT}, {Type: uint256T},
+	}
+	encoded, err := args.Pack(rig.chainID, rig.registryAddr, digest, issuer, rig.slashWad)
+	if err != nil {
+		t.Fatalf("abi.Pack canonical message: %v", err)
+	}
+	m := crypto.Keccak256Hash(encoded)
+
+	// toEthSignedMessageHash: keccak256("\x19Ethereum Signed Message:\n32" || m)
+	prefixed := crypto.Keccak256Hash(
+		[]byte("\x19Ethereum Signed Message:\n32"),
+		m.Bytes(),
+	)
+
+	sig, err := crypto.Sign(prefixed.Bytes(), signer)
+	if err != nil {
+		t.Fatalf("sign slash proof: %v", err)
+	}
+	// crypto.Sign returns [R || S || V] with V in {0,1}; contract wants {27,28}.
+	sig[64] += 27
+	return sig
 }
 
 // registerOperator calls MockServiceManager.registerOperator(addr) by abi-encoding
@@ -318,7 +381,166 @@ func TestAVSRevokeSlashesNobodyWithoutValidProof(t *testing.T) {
 }
 
 // ------------------------------------------------------------------
-// Test 5: register rejects mismatched issuer (anti-spoofing)
+// Test 5 (VF-11 impl): VALID reporter proof slashes by EXACTLY slashWad.
+//
+// This is the legitimate-slash path the suite previously lacked. A proof
+// that is an EIP-191 signature by the trusted Slashing-Reporter key over the
+// canonical slash message (chainid, registry, digest, issuer, slashWad) MUST
+// enable the economic slash — exactly once, for exactly slashWad — and emit
+// SlashTriggered (not SlashWithheldUnverifiedProof).
+// ------------------------------------------------------------------
+
+func TestAVSValidProofSlashesExactWad(t *testing.T) {
+	slashWad := new(big.Int)
+	slashWad.SetString("250000000000000000", 10) // 25%
+
+	rig := avsSetup(t, slashWad)
+	ctx := context.Background()
+
+	rig.registerOperator(t, rig.from)
+
+	digest := randomDigest(t)
+	tx, err := rig.client.AnchorEnvelope(ctx, digest, 0)
+	if err != nil {
+		t.Fatalf("anchor: %v", err)
+	}
+	commitAndWait(t, rig.backend, rig.client, tx)
+
+	if got := rig.querySlashed(t, rig.from); got.Sign() != 0 {
+		t.Fatalf("pre-revoke totalSlashed: got %s, want 0", got)
+	}
+
+	// Reporter signs a valid proof authorizing the slash of rig.from for digest.
+	proof := rig.buildSlashProof(t, rig.reporterKey, digest, rig.from)
+
+	rTx, err := rig.client.RevokeAnchor(ctx, digest, proof)
+	if err != nil {
+		t.Fatalf("revoke with valid proof: %v", err)
+	}
+	rec := commitAndWait(t, rig.backend, rig.client, rTx)
+
+	// Slashed by EXACTLY slashWad.
+	got := rig.querySlashed(t, rig.from)
+	if got.Cmp(slashWad) != 0 {
+		t.Errorf("valid proof: totalSlashed got %s, want %s", got, slashWad)
+	}
+
+	// SlashTriggered emitted; SlashWithheldUnverifiedProof NOT emitted.
+	if !hasEventTopic(rec, "SlashTriggered(bytes32,address,uint256,bytes32)") {
+		t.Error("expected SlashTriggered event on valid-proof slash")
+	}
+	if hasEventTopic(rec, "SlashWithheldUnverifiedProof(bytes32,address,address,bytes32)") {
+		t.Error("SlashWithheldUnverifiedProof must NOT be emitted on a valid proof")
+	}
+
+	// Revoked flag flipped.
+	valid, err := rig.client.IsValid(ctx, digest)
+	if err != nil {
+		t.Fatalf("IsValid: %v", err)
+	}
+	if valid {
+		t.Error("IsValid should be false after a valid-proof revoke")
+	}
+}
+
+// ------------------------------------------------------------------
+// Test 6 (VF-11 impl): invalid proofs all WITHHELD, no stake moved.
+//
+// Wrong signing key, wrong digest, and a malformed/short proof must each
+// leave totalSlashed == 0, flip the revoked flag, and emit
+// SlashWithheldUnverifiedProof (never SlashTriggered).
+// ------------------------------------------------------------------
+
+func TestAVSInvalidProofsAreWithheld(t *testing.T) {
+	cases := []struct {
+		name  string
+		proof func(rig *avsRig, t *testing.T, digest [32]byte) []byte
+	}{
+		{
+			name: "wrong signing key",
+			proof: func(rig *avsRig, t *testing.T, digest [32]byte) []byte {
+				wrongKey, err := crypto.GenerateKey()
+				if err != nil {
+					t.Fatalf("genkey: %v", err)
+				}
+				return rig.buildSlashProof(t, wrongKey, digest, rig.from)
+			},
+		},
+		{
+			name: "wrong digest (reporter signs a different digest)",
+			proof: func(rig *avsRig, t *testing.T, digest [32]byte) []byte {
+				other := randomDigest(t)
+				return rig.buildSlashProof(t, rig.reporterKey, other, rig.from)
+			},
+		},
+		{
+			name: "malformed short proof",
+			proof: func(rig *avsRig, t *testing.T, _ [32]byte) []byte {
+				return []byte("too-short")
+			},
+		},
+		{
+			name: "pre-fix bogus bytes",
+			proof: func(rig *avsRig, t *testing.T, _ [32]byte) []byte {
+				return []byte("totally-bogus-unverified-proof")
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			rig := avsSetup(t, big.NewInt(0)) // default 10%
+			ctx := context.Background()
+			rig.registerOperator(t, rig.from)
+
+			digest := randomDigest(t)
+			tx, err := rig.client.AnchorEnvelope(ctx, digest, 0)
+			if err != nil {
+				t.Fatalf("anchor: %v", err)
+			}
+			commitAndWait(t, rig.backend, rig.client, tx)
+
+			rTx, err := rig.client.RevokeAnchor(ctx, digest, tc.proof(rig, t, digest))
+			if err != nil {
+				t.Fatalf("revoke: %v", err)
+			}
+			rec := commitAndWait(t, rig.backend, rig.client, rTx)
+
+			if got := rig.querySlashed(t, rig.from); got.Sign() != 0 {
+				t.Errorf("VF-11: invalid proof slashed by %s (want 0)", got)
+			}
+			if !hasEventTopic(rec, "SlashWithheldUnverifiedProof(bytes32,address,address,bytes32)") {
+				t.Error("expected SlashWithheldUnverifiedProof on invalid proof")
+			}
+			if hasEventTopic(rec, "SlashTriggered(bytes32,address,uint256,bytes32)") {
+				t.Error("SlashTriggered must NOT be emitted on an invalid proof")
+			}
+
+			valid, err := rig.client.IsValid(ctx, digest)
+			if err != nil {
+				t.Fatalf("IsValid: %v", err)
+			}
+			if valid {
+				t.Error("revoke flag should flip even when the slash is withheld")
+			}
+		})
+	}
+}
+
+// hasEventTopic reports whether the receipt carries a log whose topic[0] is
+// keccak256(eventSig), e.g. "SlashTriggered(bytes32,address,uint256,bytes32)".
+func hasEventTopic(rec *types.Receipt, eventSig string) bool {
+	want := crypto.Keccak256Hash([]byte(eventSig))
+	for _, lg := range rec.Logs {
+		if len(lg.Topics) > 0 && lg.Topics[0] == want {
+			return true
+		}
+	}
+	return false
+}
+
+// ------------------------------------------------------------------
+// Test 7: register rejects mismatched issuer (anti-spoofing)
 // ------------------------------------------------------------------
 
 func TestAVSRegisterRejectsForeignIssuer(t *testing.T) {

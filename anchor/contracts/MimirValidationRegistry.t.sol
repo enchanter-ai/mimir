@@ -38,16 +38,24 @@ contract MimirValidationRegistryTest is Test {
     uint256 constant FAR_FUTURE = 9_999_999_999;
     uint256 constant NO_EXPIRY  = 0;
 
+    // VF-11: trusted Slashing-Reporter key. Its address authorizes slashes;
+    // tests sign the canonical slash message with REPORTER_PK via vm.sign.
+    uint256 constant REPORTER_PK = 0xA11CE;
+    address REPORTER = vm.addr(REPORTER_PK);
+
     function setUp() public {
-        // Permissionless mode: no service manager, no slasher, default wad.
+        // Permissionless mode: no service manager, no slasher, default wad,
+        // no slashing reporter (unused when the AVS handles are zero).
         registry = new MimirValidationRegistry(
             IServiceManager(address(0)),
             ISlasher(address(0)),
-            0
+            0,
+            address(0)
         );
     }
 
-    // Helper: spin up an AVS-mode registry wired to fresh mocks.
+    // Helper: spin up an AVS-mode registry wired to fresh mocks, with REPORTER
+    // as the trusted Slashing-Reporter key.
     function _deployAvs(uint256 slashWad)
         internal
         returns (MimirValidationRegistry avs, MockServiceManager mgr, MockSlasher sl)
@@ -57,8 +65,29 @@ contract MimirValidationRegistryTest is Test {
         avs = new MimirValidationRegistry(
             IServiceManager(address(mgr)),
             ISlasher(address(sl)),
-            slashWad
+            slashWad,
+            REPORTER
         );
+    }
+
+    // _signSlashProof builds a 65-byte (r,s,v) EIP-191 signature by REPORTER_PK
+    // over the canonical slash message that MimirValidationRegistry verifies:
+    //   m = keccak256(abi.encode(chainid, registry, digest, issuer, slashWad))
+    //   ethSigned = keccak256("\x19Ethereum Signed Message:\n32" || m)
+    function _signSlashProof(
+        MimirValidationRegistry avs,
+        bytes32 digest,
+        address issuer,
+        uint256 slashWad
+    ) internal view returns (bytes memory) {
+        bytes32 m = keccak256(
+            abi.encode(block.chainid, address(avs), digest, issuer, slashWad)
+        );
+        bytes32 ethSigned = keccak256(
+            abi.encodePacked("\x19Ethereum Signed Message:\n32", m)
+        );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(REPORTER_PK, ethSigned);
+        return abi.encodePacked(r, s, v);
     }
 
     // -----------------------------------------------------------------------
@@ -261,12 +290,6 @@ contract MimirValidationRegistryTest is Test {
 
     // (b) Legitimate NON-SLASH paths still work in AVS mode:
     //     operator registration + anchoring + verify round-trip.
-    //
-    //     NOTE: there is currently NO legitimate *slash* path to exercise.
-    //     _verifySlashProof() is intentionally unimplemented (returns false)
-    //     pending a reviewed proof scheme, so the economic slash is HELD by
-    //     design. Once a verifier is wired in, add a test asserting that a
-    //     VALID proof DOES slash by exactly `slashWad`.
     function test_AvsLegitimateRegisterAndVerify() public {
         (MimirValidationRegistry avs, MockServiceManager mgr, ) = _deployAvs(0);
 
@@ -302,5 +325,109 @@ contract MimirValidationRegistryTest is Test {
         (, , bool revoked) = registry.verify(DIGEST_1);
         assertTrue(revoked, "permissionless third-party revoke should flip flag");
         assertFalse(registry.avsModeEnabled(), "permissionless mode: AVS disabled");
+    }
+
+    // =======================================================================
+    // VF-11 IMPLEMENTATION TESTS — a VALID reporter proof enables slashing
+    // =======================================================================
+
+    // (d) A VALID reporter-signed proof slashes by EXACTLY slashWad and emits
+    //     SlashTriggered. This is the legitimate-slash path the suite lacked.
+    function test_VF11_ValidProofSlashesExactWad() public {
+        uint256 wad = 2.5e17; // 25%
+        (MimirValidationRegistry avs, MockServiceManager mgr, MockSlasher sl) =
+            _deployAvs(wad);
+
+        mgr.registerOperator(ISSUER_A);
+        vm.prank(ISSUER_A);
+        avs.register(DIGEST_1, ISSUER_A, FAR_FUTURE);
+
+        assertEq(sl.totalSlashed(ISSUER_A), 0, "pre-revoke slashed must be 0");
+
+        bytes memory proof = _signSlashProof(avs, DIGEST_1, ISSUER_A, wad);
+
+        vm.expectEmit(true, true, false, true);
+        emit MimirValidationRegistry.SlashTriggered(
+            DIGEST_1, ISSUER_A, wad, keccak256(proof)
+        );
+
+        vm.prank(THIRD_PARTY); // revoke is permissionless; proof carries authority
+        avs.revoke(DIGEST_1, proof);
+
+        assertEq(sl.totalSlashed(ISSUER_A), wad, "valid proof must slash by exactly slashWad");
+
+        (, , bool revoked) = avs.verify(DIGEST_1);
+        assertTrue(revoked, "revoke flag should flip");
+        assertFalse(avs.isValid(DIGEST_1), "isValid false after revoke");
+    }
+
+    // (e) A proof signed by the WRONG key must NOT slash.
+    function test_VF11_WrongKeyProofDoesNotSlash() public {
+        uint256 wad = 1e17;
+        (MimirValidationRegistry avs, MockServiceManager mgr, MockSlasher sl) =
+            _deployAvs(wad);
+
+        mgr.registerOperator(ISSUER_A);
+        vm.prank(ISSUER_A);
+        avs.register(DIGEST_1, ISSUER_A, FAR_FUTURE);
+
+        // Sign with an attacker key over the correct message.
+        uint256 attackerPk = 0xBAD;
+        bytes32 m = keccak256(
+            abi.encode(block.chainid, address(avs), DIGEST_1, ISSUER_A, wad)
+        );
+        bytes32 ethSigned = keccak256(
+            abi.encodePacked("\x19Ethereum Signed Message:\n32", m)
+        );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(attackerPk, ethSigned);
+        bytes memory proof = abi.encodePacked(r, s, v);
+
+        vm.expectEmit(true, true, true, true);
+        emit MimirValidationRegistry.SlashWithheldUnverifiedProof(
+            DIGEST_1, ISSUER_A, THIRD_PARTY, keccak256(proof)
+        );
+        vm.prank(THIRD_PARTY);
+        avs.revoke(DIGEST_1, proof);
+
+        assertEq(sl.totalSlashed(ISSUER_A), 0, "wrong-key proof must NOT slash");
+    }
+
+    // (f) A reporter signature over the WRONG digest must NOT slash the target.
+    function test_VF11_WrongDigestProofDoesNotSlash() public {
+        uint256 wad = 1e17;
+        (MimirValidationRegistry avs, MockServiceManager mgr, MockSlasher sl) =
+            _deployAvs(wad);
+
+        mgr.registerOperator(ISSUER_A);
+        vm.startPrank(ISSUER_A);
+        avs.register(DIGEST_1, ISSUER_A, FAR_FUTURE);
+        avs.register(DIGEST_2, ISSUER_A, FAR_FUTURE);
+        vm.stopPrank();
+
+        // Reporter signs for DIGEST_2 but we submit it against DIGEST_1.
+        bytes memory proof = _signSlashProof(avs, DIGEST_2, ISSUER_A, wad);
+
+        vm.prank(THIRD_PARTY);
+        avs.revoke(DIGEST_1, proof);
+
+        assertEq(sl.totalSlashed(ISSUER_A), 0, "wrong-digest proof must NOT slash");
+    }
+
+    // (g) A malformed (wrong-length) proof must NOT slash.
+    function test_VF11_MalformedProofDoesNotSlash() public {
+        uint256 wad = 1e17;
+        (MimirValidationRegistry avs, MockServiceManager mgr, MockSlasher sl) =
+            _deployAvs(wad);
+
+        mgr.registerOperator(ISSUER_A);
+        vm.prank(ISSUER_A);
+        avs.register(DIGEST_1, ISSUER_A, FAR_FUTURE);
+
+        vm.prank(THIRD_PARTY);
+        avs.revoke(DIGEST_1, hex"deadbeef"); // 4 bytes, not 65
+
+        assertEq(sl.totalSlashed(ISSUER_A), 0, "malformed proof must NOT slash");
+        (, , bool revoked) = avs.verify(DIGEST_1);
+        assertTrue(revoked, "revoke flag should still flip");
     }
 }

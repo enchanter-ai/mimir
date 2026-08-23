@@ -91,6 +91,18 @@ func main() {
 	}
 	from := crypto.PubkeyToAddress(priv.PublicKey)
 
+	// VF-11: the trusted Slashing-Reporter key whose EIP-191 signature over the
+	// canonical slash message authorizes a slash. In AVS mode it MUST be
+	// non-zero (the constructor enforces this). Default to the deployer address
+	// for a self-consistent single-key testnet deploy; override with
+	// SLASHING_REPORTER for a real, custody-separated reporter key.
+	var slashingReporter common.Address
+	if s := os.Getenv("SLASHING_REPORTER"); s != "" {
+		slashingReporter = common.HexToAddress(s)
+	} else if !mgrZero {
+		slashingReporter = from
+	}
+
 	ec, err := ethclient.Dial(rpc)
 	if err != nil {
 		log.Fatalf("dial %s: %v", rpc, err)
@@ -118,6 +130,7 @@ func main() {
 	log.Printf("  service_mgr   : %s", serviceManager.Hex())
 	log.Printf("  slasher       : %s", slasher.Hex())
 	log.Printf("  slash_wad     : %s (%.1f%%)", slashWad.String(), wadPercent(slashWad))
+	log.Printf("  slash_reporter: %s", slashingReporter.Hex())
 
 	if bal.Sign() == 0 {
 		log.Fatalf("deployer balance is zero — fund %s with testnet ETH before deploy", from.Hex())
@@ -127,7 +140,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("loadABI: %v", err)
 	}
-	args, err := parsedABI.Pack("", serviceManager, slasher, slashWad)
+	args, err := parsedABI.Pack("", serviceManager, slasher, slashWad, slashingReporter)
 	if err != nil {
 		log.Fatalf("pack constructor args: %v", err)
 	}

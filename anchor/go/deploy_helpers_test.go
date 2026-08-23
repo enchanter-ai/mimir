@@ -96,7 +96,11 @@ func deployRaw(
 }
 
 // deployRegistry deploys MimirValidationRegistry. For permissionless mode,
-// pass common.Address{} for both manager + slasher, and big.NewInt(0) for slashWad.
+// pass common.Address{} for both manager + slasher, big.NewInt(0) for slashWad,
+// and common.Address{} for slashingReporter (unused in permissionless mode).
+// In AVS mode slashingReporter MUST be non-zero (the trusted Slashing-Reporter
+// key whose EIP-191 signature over the canonical slash message authorizes a
+// slash — see MimirValidationRegistry._verifySlashProof).
 func deployRegistry(
 	t *testing.T,
 	ctx context.Context,
@@ -105,10 +109,11 @@ func deployRegistry(
 	deployer *ecdsa.PrivateKey,
 	serviceManager, slasher common.Address,
 	slashWad *big.Int,
+	slashingReporter common.Address,
 ) common.Address {
 	t.Helper()
 	parsedABI, bytecode := readContract(t, "MimirValidationRegistry")
-	args, err := parsedABI.Pack("", serviceManager, slasher, slashWad)
+	args, err := parsedABI.Pack("", serviceManager, slasher, slashWad, slashingReporter)
 	if err != nil {
 		t.Fatalf("pack registry constructor: %v", err)
 	}

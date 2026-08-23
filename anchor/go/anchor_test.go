@@ -62,8 +62,9 @@ func testSetup(t *testing.T) (*anchor.Client, *simulated.Backend, common.Address
 	}
 	_ = from // (used below via privKey → from inside deployRegistry)
 
-	// Deploy in permissionless mode: zero addresses, default slashWad.
-	contractAddr := deployRegistry(t, ctx, backend, ec, privKey, common.Address{}, common.Address{}, big.NewInt(0))
+	// Deploy in permissionless mode: zero addresses, default slashWad, no
+	// slashing reporter (unused when serviceManager/slasher are zero).
+	contractAddr := deployRegistry(t, ctx, backend, ec, privKey, common.Address{}, common.Address{}, big.NewInt(0), common.Address{})
 	t.Logf("contract deployed at %s", contractAddr.Hex())
 
 	// 4. Build the anchor.Client using NewWithClient (adapter for simulated client).

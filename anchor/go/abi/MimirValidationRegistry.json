@@ -15,6 +15,11 @@
         "internalType": "uint256",
         "name": "_slashWad",
         "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "_slashingReporter",
+        "type": "address"
       }
     ],
     "stateMutability": "nonpayable",
@@ -339,6 +344,19 @@
     "outputs": [
       {
         "internalType": "contract ISlasher",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "slashingReporter",
+    "outputs": [
+      {
+        "internalType": "address",
         "name": "",
         "type": "address"
       }
