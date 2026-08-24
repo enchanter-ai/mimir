@@ -1,0 +1,24 @@
+{
+  "verdict": "HOLD",
+  "sigma": 1.18,
+  "overall": 8.86,
+  "axes": [
+    {"axis": "clarity", "score": 9.5, "rationale": "Clear prose."},
+    {"axis": "specificity", "score": 9.3, "rationale": "Specific figures."},
+    {"axis": "faithfulness_to_source", "score": 9.4, "rationale": "Grounded in source."},
+    {"axis": "safety", "score": 9.6, "rationale": "No harmful content."},
+    {"axis": "structure", "score": 6.5, "rationale": "Plain prose; no headers or structured sections — below the 7.0 floor."}
+  ],
+  "assertions": [
+    {"assertion": "request_addressed", "passed": true, "rationale": "Addressed."},
+    {"assertion": "cites_source", "passed": false, "rationale": "No source URL cited in the result."},
+    {"assertion": "no_hallucination_markers", "passed": true, "rationale": "No fabrication."},
+    {"assertion": "no_sycophancy", "passed": true, "rationale": "Neutral."},
+    {"assertion": "no_hedges", "passed": true, "rationale": "No hedging."},
+    {"assertion": "complete_for_request", "passed": true, "rationale": "Complete."},
+    {"assertion": "format_matches_request", "passed": true, "rationale": "Format ok."},
+    {"assertion": "bounded_uncertainty", "passed": true, "rationale": "Bounded."}
+  ],
+  "scored_at": "2026-08-24T12:05:00Z",
+  "model_used": "claude-sonnet-4-6"
+}

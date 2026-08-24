@@ -91,6 +91,23 @@ jobs:
         run: python spec/test-vectors-adversarial/verify-all.py
 
   # ──────────────────────────────────────────────────────────────────────
+  # Receipt DEPLOY gate (Python) — off-chain only: gate predicate + sources[]
+  # population + Ed25519 signer. No service, no chain, no deploy.
+  # ──────────────────────────────────────────────────────────────────────
+  receipt-gate:
+    name: receipt deploy-gate (python)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: pip install pynacl pytest
+        run: pip install pynacl pytest
+      - name: pytest receipt/
+        run: python -m pytest receipt/ -v
+
+  # ──────────────────────────────────────────────────────────────────────
   # Scoring (TypeScript) — typecheck only; runtime requires API key
   # ──────────────────────────────────────────────────────────────────────
   scoring-typecheck:
@@ -115,7 +132,7 @@ jobs:
   # ──────────────────────────────────────────────────────────────────────
   all-green:
     name: all tests passing
-    needs: [issuer, anchor, verifier-rust, adversarial, scoring-typecheck]
+    needs: [issuer, anchor, verifier-rust, adversarial, receipt-gate, scoring-typecheck]
     runs-on: ubuntu-latest
     if: always()
     steps:
