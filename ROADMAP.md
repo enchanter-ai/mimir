@@ -17,6 +17,7 @@
 | **MCP wire format** | ✅ Official Anthropic MCP SDK round-trip end-to-end | [`tests/mcp/`](tests/mcp/) |
 | **Scoring (TypeScript)** — σ-bound 5-axis × 8-assertion quality rubric | ✅ Tool-call-result-appropriate rubric; calibrated against real Claude Sonnet 4.6 | [`scoring/`](scoring/) |
 | **σ-bound calibration** | ✅ 50-case labeled set: 100% precision (0/23 bad→DEPLOY), 20% recall | [`scoring/calibration/calibration-report.md`](scoring/calibration/calibration-report.md) |
+| **Off-chain DEPLOY gate + real `sources[]`** | ✅ Receipt refused unless a wixie verdict clears the strict bar (σ<0.45 ∧ overall≥9.0 ∧ min-axis≥7.0 ∧ 8/8); `sources[]` populated from eval provenance (off-chain only). Go `/v1/attest` gate still open. | [`receipt/deploy_gate.py`](receipt/deploy_gate.py) |
 | **On-chain anchor** (`MimirValidationRegistry`, ERC-8004 shape) | ✅ 7/7 simulated-EVM tests | [`anchor/contracts/`](anchor/contracts/), [`anchor/go/anchor_test.go`](anchor/go/anchor_test.go) |
 | **EigenLayer slashing wiring** | ✅ 5/5 AVS-mode tests against mocked IServiceManager + ISlasher | [`anchor/go/eigenlayer_test.go`](anchor/go/eigenlayer_test.go) |
 | **Throughput + concurrency** | ✅ 1500 RPS sustained; 0 races under 500-goroutine stress | [`bench/`](bench/) |

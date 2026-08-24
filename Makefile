@@ -4,7 +4,7 @@
 # file are stable; per-component Makefiles (issuer/Makefile, scoring/Makefile)
 # stay focused on their language ecosystem.
 
-.PHONY: all test test-issuer test-anchor test-rust test-adversarial \
+.PHONY: all test test-issuer test-anchor test-rust test-adversarial test-receipt \
         compile docker docker-issuer docker-scoring \
         verify-build sbom \
         clean help
@@ -16,6 +16,7 @@ help:
 	@echo "  make test-anchor        Go tests in anchor/go/ (14/14 simulated EVM)"
 	@echo "  make test-rust          cargo test in spec/reference-impl-rust/ (6/6)"
 	@echo "  make test-adversarial   verify-all.py against 15 attack vectors"
+	@echo "  make test-receipt       off-chain DEPLOY-gate receipt tests (pytest)"
 	@echo "  make compile            recompile contracts via solc-js"
 	@echo "  make docker             build both Docker images (issuer + scoring)"
 	@echo "  make verify-build       reproducibility check (re-emit bytecode, compare on-chain)"
@@ -24,7 +25,7 @@ help:
 
 # ─── Tests ──────────────────────────────────────────────────────────────
 
-test: test-issuer test-anchor test-rust test-adversarial
+test: test-issuer test-anchor test-rust test-adversarial test-receipt
 
 test-issuer:
 	cd issuer && go test -timeout 120s ./...
@@ -37,6 +38,10 @@ test-rust:
 
 test-adversarial:
 	python spec/test-vectors-adversarial/verify-all.py
+
+# Off-chain only: gate + sources[] tests. No service, no chain, no deploy.
+test-receipt:
+	python -m pytest receipt/ -v
 
 # ─── Contract compile + reproducibility ─────────────────────────────────
 
