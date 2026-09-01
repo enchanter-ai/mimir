@@ -416,7 +416,7 @@ Mimir builds on substrate laid by others:
 
 ## Versioning & release cadence
 
-Mimir follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html). The spec version (`spec/index.mdx` frontmatter) and the code version (`CHANGELOG.md`) move together — a breaking change to the envelope's signed-fields tuple bumps the major for both. Release cadence is opportunistic; tags land when accumulated fixes or features justify a cut, not on a fixed schedule. Migration notes between majors live in [`docs/UPGRADING.md`](docs/UPGRADING.md) once we cut a v0.2.
+Mimir follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html). The code version is the source of truth for releases and is tracked in [`CHANGELOG.md`](CHANGELOG.md) (`git tag`-driven). The envelope spec carries no single version number in its `spec/index.mdx` frontmatter; it is versioned instead by profile identifier (`mcp-provenance/{date}-{algorithm-suite}`, e.g. `mcp-provenance/2026-05-13-ed25519`; see spec § 11). A breaking change to the envelope's signed-fields tuple mints a new profile identifier and bumps the code major. Release cadence is opportunistic; tags land when accumulated fixes or features justify a cut, not on a fixed schedule. Migration notes between majors will live in a planned `docs/UPGRADING.md` (not yet created) once we cut a v0.2.
 
 ## Contributing
 
