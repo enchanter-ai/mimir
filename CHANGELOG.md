@@ -51,7 +51,7 @@ The initial public release. The full Mimir protocol stack — spec, three indepe
 ### Added
 
 #### Protocol + spec
-- Provenance Envelope **v2.1 Standards Track draft** (CC0). 26 sections covering wire format, canonicalization (RFC 8785), three-level validation model, threat model, MCP wire-format binding, ClientIdentityProof (DPoP), and on-chain anchoring.
+- Provenance Envelope **Standards Track draft** (versioned by profile identifier `mcp-provenance/{date}-{algorithm-suite}`; CC0). 26 sections covering wire format, canonicalization (RFC 8785), three-level validation model, threat model, MCP wire-format binding, ClientIdentityProof (DPoP), and on-chain anchoring.
 - **Rendered PDF** (`spec/spec.pdf`) with hand-authored SVG diagrams and Enchanter Labs cover.
 - **35 happy-path test vectors** + **12 adversarial vectors** (`spec/test-vectors-adversarial/`) covering signature tampering, replay-window violations, algorithm downgrade, key-id swap, canonical-form whitespace handling, and unknown-field handling.
 - **Reference TypeScript SDK** (`spec/reference-impl-ts/`) for envelope production + verification, embeddable in MCP clients.
